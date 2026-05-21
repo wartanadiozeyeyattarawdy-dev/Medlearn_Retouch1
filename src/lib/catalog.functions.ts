@@ -21,10 +21,9 @@ export const searchModules = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.supabase.rpc("search_modules", {
-      q: data.q,
-      _year: data.yearId ?? null,
-    });
+    const args: { q: string; _year?: string } = { q: data.q };
+    if (data.yearId) args._year = data.yearId;
+    const { data: rows, error } = await context.supabase.rpc("search_modules", args);
     if (error) throw new Error(error.message);
     return rows ?? [];
   });
