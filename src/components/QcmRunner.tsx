@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { submitAttempt } from "@/lib/qcm.functions";
 import { Button } from "@/components/ui/button";
@@ -48,8 +48,9 @@ export function QcmRunner({
     onActiveQuestion?.(null);
   };
 
-  // Tell drawer which question is active
-  if (onActiveQuestion) onActiveQuestion(isSubmitted ? null : q.id);
+  useEffect(() => {
+    onActiveQuestion?.(isSubmitted ? null : q.id);
+  }, [q.id, isSubmitted, onActiveQuestion]);
 
   return (
     <Card>
