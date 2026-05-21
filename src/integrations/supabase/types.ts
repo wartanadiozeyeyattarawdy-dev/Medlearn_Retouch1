@@ -14,16 +14,317 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      abbreviations: {
+        Row: {
+          full_form: string
+          id: string
+          module_id: string
+          short: string
+        }
+        Insert: {
+          full_form: string
+          id?: string
+          module_id: string
+          short: string
+        }
+        Update: {
+          full_form?: string
+          id?: string
+          module_id?: string
+          short?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "abbreviations_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attempts: {
+        Row: {
+          chosen_letters: string[]
+          correct: boolean
+          created_at: string
+          id: string
+          question_id: string
+          user_id: string
+        }
+        Insert: {
+          chosen_letters?: string[]
+          correct?: boolean
+          created_at?: string
+          id?: string
+          question_id: string
+          user_id: string
+        }
+        Update: {
+          chosen_letters?: string[]
+          correct?: boolean
+          created_at?: string
+          id?: string
+          question_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attempts_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      choices: {
+        Row: {
+          explanation: string
+          id: string
+          is_correct: boolean
+          letter: string
+          question_id: string
+          text: string
+        }
+        Insert: {
+          explanation?: string
+          id?: string
+          is_correct?: boolean
+          letter: string
+          question_id: string
+          text: string
+        }
+        Update: {
+          explanation?: string
+          id?: string
+          is_correct?: boolean
+          letter?: string
+          question_id?: string
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "choices_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lessons: {
+        Row: {
+          created_at: string
+          full_text: string
+          id: string
+          mini_case: string | null
+          module_id: string
+          ord: number
+          summary: string
+          title: string
+          traps: string | null
+        }
+        Insert: {
+          created_at?: string
+          full_text?: string
+          id?: string
+          mini_case?: string | null
+          module_id: string
+          ord?: number
+          summary?: string
+          title: string
+          traps?: string | null
+        }
+        Update: {
+          created_at?: string
+          full_text?: string
+          id?: string
+          mini_case?: string | null
+          module_id?: string
+          ord?: number
+          summary?: string
+          title?: string
+          traps?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lessons_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      modules: {
+        Row: {
+          created_at: string
+          description: string | null
+          emoji: string | null
+          id: string
+          learning_info: string | null
+          name: string
+          published: boolean
+          year_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          learning_info?: string | null
+          name: string
+          published?: boolean
+          year_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          learning_info?: string | null
+          name?: string
+          published?: boolean
+          year_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "modules_year_id_fkey"
+            columns: ["year_id"]
+            isOneToOne: false
+            referencedRelation: "years"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      questions: {
+        Row: {
+          created_at: string
+          id: string
+          lesson_id: string | null
+          module_id: string
+          ord: number
+          source: string
+          stem: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lesson_id?: string | null
+          module_id: string
+          ord?: number
+          source?: string
+          stem: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lesson_id?: string | null
+          module_id?: string
+          ord?: number
+          source?: string
+          stem?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "questions_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "questions_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      years: {
+        Row: {
+          id: string
+          label: string
+          ord: number
+        }
+        Insert: {
+          id?: string
+          label: string
+          ord?: number
+        }
+        Update: {
+          id?: string
+          label?: string
+          ord?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      search_modules: {
+        Args: { _year?: string; q: string }
+        Returns: {
+          description: string
+          emoji: string
+          id: string
+          name: string
+          score: number
+          year_id: string
+        }[]
+      }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "student"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +451,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "student"],
+    },
   },
 } as const
