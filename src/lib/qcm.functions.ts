@@ -58,11 +58,13 @@ export const submitAttempt = createServerFn({ method: "POST" })
     let stats: { new_xp: number; new_level: number; leveled_up: boolean; new_streak: number } | null = null;
     if (correct) {
       xp = 10;
-      const { data: res } = await supabase.rpc("award_xp" as never, { _amount: xp, _reason: "qcm_correct" });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: res } = await (supabase as any).rpc("award_xp", { _amount: xp, _reason: "qcm_correct" });
       stats = Array.isArray(res) ? res[0] : res;
     } else {
-      const { data: h } = await supabase.rpc("consume_heart" as never);
-      hearts = h as number;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: h } = await (supabase as any).rpc("consume_heart");
+      hearts = (h as number | null) ?? null;
     }
     return { correct, xp, hearts, stats };
   });
