@@ -42,10 +42,10 @@ function ProfilePage() {
         {/* Header */}
         <div className="duo-card p-6 flex items-center gap-5">
           <div className="grid h-20 w-20 place-items-center rounded-full bg-primary text-primary-foreground text-3xl font-extrabold">
-            {(name || me.email || "?").slice(0,1).toUpperCase()}
+            {(name || me.profile?.full_name || "?").slice(0,1).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-extrabold truncate">{name || me.email}</h1>
+            <h1 className="text-2xl font-extrabold truncate">{name || me.profile?.full_name}</h1>
             <p className="text-muted-foreground text-sm">Niveau {stats?.level ?? 1} · {earned} badge{earned>1?'s':''}</p>
             <div className="mt-3 h-3 rounded-full bg-muted overflow-hidden max-w-xs">
               <div className="h-full bg-primary transition-all" style={{ width: `${levelProgress * 100}%` }} />
@@ -92,12 +92,12 @@ function ProfilePage() {
           <h2 className="text-xl font-extrabold mb-3 flex items-center gap-2"><Trophy className="h-5 w-5" /> Classement</h2>
           <div className="duo-card divide-y-2 divide-border overflow-hidden">
             {board.map((b) => (
-              <div key={b.user_id} className={`flex items-center gap-4 p-3 ${b.user_id === me.id ? 'bg-primary/10' : ''}`}>
+              <div key={b.user_id} className={`flex items-center gap-4 p-3 ${b.user_id === me.userId ? 'bg-primary/10' : ''}`}>
                 <div className={`grid h-8 w-8 place-items-center rounded-lg font-extrabold ${b.rank===1?'bg-xp text-white':b.rank===2?'bg-muted-foreground/30':b.rank===3?'bg-streak/30':'bg-muted'}`}>
                   {b.rank}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-extrabold truncate">{b.name}{b.user_id===me.id ? ' (toi)' : ''}</p>
+                  <p className="font-extrabold truncate">{b.name}{b.user_id===me.userId ? ' (toi)' : ''}</p>
                   <p className="text-xs text-muted-foreground">Niveau {b.level} · {b.streak} 🔥</p>
                 </div>
                 <div className="font-extrabold text-xp inline-flex items-center gap-1"><Zap className="h-4 w-4 fill-current" /> {b.xp}</div>
