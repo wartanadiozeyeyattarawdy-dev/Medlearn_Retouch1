@@ -53,7 +53,20 @@ export const submitAttempt = createServerFn({ method: "POST" })
       chosen_letters: data.chosen,
       correct,
     });
-    return { correct };
+    let xp = 0;
+    let hearts: number | null = null;
+    let stats: { new_xp: number; new_level: number; leveled_up: boolean; new_streak: number } | null = null;
+    if (correct) {
+      xp = 10;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: res } = await (supabase as any).rpc("award_xp", { _amount: xp, _reason: "qcm_correct" });
+      stats = Array.isArray(res) ? res[0] : res;
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: h } = await (supabase as any).rpc("consume_heart");
+      hearts = (h as number | null) ?? null;
+    }
+    return { correct, xp, hearts, stats };
   });
 
 // Generate AI QCMs for a module from its lesson text
