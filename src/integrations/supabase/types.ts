@@ -43,6 +43,33 @@ export type Database = {
           },
         ]
       }
+      achievements: {
+        Row: {
+          description: string
+          emoji: string
+          id: string
+          ord: number
+          title: string
+          xp_reward: number
+        }
+        Insert: {
+          description: string
+          emoji?: string
+          id: string
+          ord?: number
+          title: string
+          xp_reward?: number
+        }
+        Update: {
+          description?: string
+          emoji?: string
+          id?: string
+          ord?: number
+          title?: string
+          xp_reward?: number
+        }
+        Relationships: []
+      }
       attempts: {
         Row: {
           chosen_letters: string[]
@@ -112,6 +139,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      lesson_progress: {
+        Row: {
+          best_score: number
+          completed_at: string | null
+          id: string
+          lesson_id: string
+          module_id: string
+          user_id: string
+          viewed_at: string | null
+        }
+        Insert: {
+          best_score?: number
+          completed_at?: string | null
+          id?: string
+          lesson_id: string
+          module_id: string
+          user_id: string
+          viewed_at?: string | null
+        }
+        Update: {
+          best_score?: number
+          completed_at?: string | null
+          id?: string
+          lesson_id?: string
+          module_id?: string
+          user_id?: string
+          viewed_at?: string | null
+        }
+        Relationships: []
       }
       lessons: {
         Row: {
@@ -261,6 +318,35 @@ export type Database = {
           },
         ]
       }
+      user_achievements: {
+        Row: {
+          achievement_id: string
+          earned_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          achievement_id: string
+          earned_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          achievement_id?: string
+          earned_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_achievements_achievement_id_fkey"
+            columns: ["achievement_id"]
+            isOneToOne: false
+            referencedRelation: "achievements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -276,6 +362,54 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_stats: {
+        Row: {
+          created_at: string
+          daily_goal: number
+          daily_xp: number
+          daily_xp_date: string
+          hearts: number
+          hearts_updated_at: string
+          last_active_date: string | null
+          level: number
+          longest_streak: number
+          streak_days: number
+          updated_at: string
+          user_id: string
+          xp: number
+        }
+        Insert: {
+          created_at?: string
+          daily_goal?: number
+          daily_xp?: number
+          daily_xp_date?: string
+          hearts?: number
+          hearts_updated_at?: string
+          last_active_date?: string | null
+          level?: number
+          longest_streak?: number
+          streak_days?: number
+          updated_at?: string
+          user_id: string
+          xp?: number
+        }
+        Update: {
+          created_at?: string
+          daily_goal?: number
+          daily_xp?: number
+          daily_xp_date?: string
+          hearts?: number
+          hearts_updated_at?: string
+          last_active_date?: string | null
+          level?: number
+          longest_streak?: number
+          streak_days?: number
+          updated_at?: string
+          user_id?: string
+          xp?: number
         }
         Relationships: []
       }
@@ -302,6 +436,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      award_xp: {
+        Args: { _amount: number; _reason?: string }
+        Returns: {
+          leveled_up: boolean
+          new_level: number
+          new_streak: number
+          new_xp: number
+        }[]
+      }
+      consume_heart: { Args: never; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -309,6 +453,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      refill_hearts_if_needed: { Args: never; Returns: undefined }
       search_modules: {
         Args: { _year?: string; q: string }
         Returns: {
