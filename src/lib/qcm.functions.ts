@@ -53,7 +53,18 @@ export const submitAttempt = createServerFn({ method: "POST" })
       chosen_letters: data.chosen,
       correct,
     });
-    return { correct };
+    let xp = 0;
+    let hearts: number | null = null;
+    let stats: { new_xp: number; new_level: number; leveled_up: boolean; new_streak: number } | null = null;
+    if (correct) {
+      xp = 10;
+      const { data: res } = await supabase.rpc("award_xp" as never, { _amount: xp, _reason: "qcm_correct" });
+      stats = Array.isArray(res) ? res[0] : res;
+    } else {
+      const { data: h } = await supabase.rpc("consume_heart" as never);
+      hearts = h as number;
+    }
+    return { correct, xp, hearts, stats };
   });
 
 // Generate AI QCMs for a module from its lesson text
