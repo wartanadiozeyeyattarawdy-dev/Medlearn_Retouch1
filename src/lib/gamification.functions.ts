@@ -6,7 +6,7 @@ export const getMyStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    await supabase.rpc("refill_hearts_if_needed" as never);
+    await (supabase as any).rpc("refill_hearts_if_needed");
     const { data: stats } = await supabase
       .from("user_stats")
       .select("*")
@@ -33,7 +33,7 @@ export const awardXP = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const { data: res, error } = await supabase.rpc("award_xp" as never, {
+    const { data: res, error } = await (supabase as any).rpc("award_xp", {
       _amount: data.amount,
       _reason: data.reason ?? null,
     });
@@ -44,7 +44,7 @@ export const awardXP = createServerFn({ method: "POST" })
 export const consumeHeart = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase.rpc("consume_heart" as never);
+    const { data, error } = await (context.supabase as any).rpc("consume_heart");
     if (error) throw new Error(error.message);
     return { hearts: data as number };
   });
