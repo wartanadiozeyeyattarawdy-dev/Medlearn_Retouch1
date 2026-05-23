@@ -193,10 +193,9 @@ export const adminRegenerateLessonPart = createServerFn({ method: "POST" })
       prompt: `${instr}\n\nLEÇON: ${lesson.title}\n${src.slice(0, 14000)}`,
       model: "google/gemini-2.5-flash",
     });
-    await supabaseAdmin
-      .from("lessons")
-      .update({ [data.part]: out.trim() })
-      .eq("id", data.lessonId);
+    const patch: Record<string, string> = { [data.part]: out.trim() };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await supabaseAdmin.from("lessons").update(patch as any).eq("id", data.lessonId);
     return { ok: true, content: out.trim() };
   });
 
