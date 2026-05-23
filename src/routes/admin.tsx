@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMe } from "@/hooks/use-me";
 import { adminListModules, adminDeleteModule, adminIngestText, promoteSelfToAdmin } from "@/lib/admin.functions";
+import { adminCreateModule } from "@/lib/lesson-admin.functions";
 import { listYears } from "@/lib/catalog.functions";
 import { AppNav } from "@/components/AppNav";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ function AdminPage() {
   const ingestFn = useServerFn(adminIngestText);
   const yearsFn = useServerFn(listYears);
   const promoteFn = useServerFn(promoteSelfToAdmin);
+  const createFn = useServerFn(adminCreateModule);
   const [mods, setMods] = useState<any[]>([]);
   const [years, setYears] = useState<any[]>([]);
   const [text, setText] = useState("");
@@ -30,6 +32,7 @@ function AdminPage() {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [newMod, setNewMod] = useState({ name: "", emoji: "📘", description: "" });
 
   const refresh = async () => {
     try { setMods(await listFn()); } catch (e) { setMsg((e as Error).message); }
@@ -71,9 +74,27 @@ function AdminPage() {
         <h1 className="text-3xl font-bold">Administration</h1>
 
         <Card>
+          <CardHeader><CardTitle>➕ Créer un module vide</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">Crée un module puis ajoute les leçons une par une (l'IA structure chaque leçon collée).</p>
+            <div className="grid sm:grid-cols-[80px_1fr_1fr_auto] gap-2">
+              <Input value={newMod.emoji} onChange={(e) => setNewMod({...newMod, emoji: e.target.value})} placeholder="📘" />
+              <Input value={newMod.name} onChange={(e) => setNewMod({...newMod, name: e.target.value})} placeholder="Nom du module" />
+              <Input value={newMod.description} onChange={(e) => setNewMod({...newMod, description: e.target.value})} placeholder="Description courte" />
+              <Button disabled={!newMod.name} onClick={async () => {
+                try {
+                  const r = await createFn({ data: { name: newMod.name, emoji: newMod.emoji || "📘", description: newMod.description, year_id: yearId || null } });
+                  window.location.href = `/admin/modules/${r.id}`;
+                } catch (e) { setMsg((e as Error).message); }
+              }}>Créer & éditer →</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" /> Ingestion IA</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">Collez le cours brut (et/ou les QCM). L'IA structure un module complet avec leçons, résumés, abréviations, QCM commentés et pièges.</p>
+            <p className="text-sm text-muted-foreground">Pour un module ENTIER d'un coup. Collez plusieurs leçons + QCM, l'IA crée tout en une fois.</p>
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
                 <Label>Nom du module (optionnel)</Label>
@@ -113,14 +134,19 @@ function AdminPage() {
             {mods.map((m) => (
               <div key={m.id} className="flex items-center justify-between border rounded-md p-3">
                 <div>
-                  <Link to="/modules/$moduleId" params={{ moduleId: m.id }} className="font-medium hover:underline">
+                  <Link to="/admin/modules/$moduleId" params={{ moduleId: m.id }} className="font-medium hover:underline">
                     {m.emoji} {m.name}
                   </Link>
                   <p className="text-xs text-muted-foreground">{m.years?.label ?? "—"}</p>
                 </div>
-                <Button variant="ghost" size="icon" onClick={async () => {
-                  if (confirm(`Supprimer "${m.name}" ?`)) { await delFn({ data: { id: m.id } }); refresh(); }
-                }}><Trash2 className="h-4 w-4" /></Button>
+                <div className="flex gap-1">
+                  <Link to="/modules/$moduleId" params={{ moduleId: m.id }}>
+                    <Button size="sm" variant="outline">Aperçu étudiant</Button>
+                  </Link>
+                  <Button variant="ghost" size="icon" onClick={async () => {
+                    if (confirm(`Supprimer "${m.name}" ?`)) { await delFn({ data: { id: m.id } }); refresh(); }
+                  }}><Trash2 className="h-4 w-4" /></Button>
+                </div>
               </div>
             ))}
           </CardContent>
