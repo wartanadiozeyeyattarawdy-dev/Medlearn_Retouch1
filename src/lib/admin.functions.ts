@@ -21,6 +21,20 @@ export const promoteSelfToAdmin = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Devenir admin avec une clé secrète (ADMIN_ACCESS_KEY). Fonctionne pour n'importe quel compte connecté. */
+export const redeemAdminKey = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ key: z.string().min(1).max(200) }).parse(input))
+  .handler(async ({ data, context }) => {
+    const expected = process.env.ADMIN_ACCESS_KEY;
+    if (!expected) throw new Error("ADMIN_ACCESS_KEY non configuré");
+    if (data.key.trim() !== expected.trim()) throw new Error("Clé invalide");
+    await supabaseAdmin
+      .from("user_roles")
+      .upsert({ user_id: context.userId, role: "admin" }, { onConflict: "user_id,role" });
+    return { ok: true };
+  });
+
 export const adminListModules = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
