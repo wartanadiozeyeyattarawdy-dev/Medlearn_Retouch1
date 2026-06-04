@@ -27,5 +27,10 @@ export async function callAI(opts: {
     throw new Error(`AI gateway error ${res.status}: ${t.slice(0, 400)}`);
   }
   const json = await res.json();
-  return json.choices?.[0]?.message?.content ?? "";
+  let content = json.choices?.[0]?.message?.content ?? "";
+  if (opts.jsonMode && typeof content === "string") {
+    // strip ```json fences some models add
+    content = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
+  }
+  return content;
 }

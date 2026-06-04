@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -17,6 +18,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ModulesModuleIdRouteImport } from './routes/modules.$moduleId'
 import { Route as AdminModulesModuleIdRouteImport } from './routes/admin.modules.$moduleId'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/modules': typeof ModulesRouteWithChildren
   '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
   '/admin/modules/$moduleId': typeof AdminModulesModuleIdRoute
 }
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/modules': typeof ModulesRouteWithChildren
   '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
   '/admin/modules/$moduleId': typeof AdminModulesModuleIdRoute
 }
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/modules': typeof ModulesRouteWithChildren
   '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
   '/admin/modules/$moduleId': typeof AdminModulesModuleIdRoute
 }
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/modules'
     | '/profile'
+    | '/settings'
     | '/modules/$moduleId'
     | '/admin/modules/$moduleId'
   fileRoutesByTo: FileRoutesByTo
@@ -98,6 +108,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/modules'
     | '/profile'
+    | '/settings'
     | '/modules/$moduleId'
     | '/admin/modules/$moduleId'
   id:
@@ -107,6 +118,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/modules'
     | '/profile'
+    | '/settings'
     | '/modules/$moduleId'
     | '/admin/modules/$moduleId'
   fileRoutesById: FileRoutesById
@@ -117,10 +129,18 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ModulesRoute: typeof ModulesRouteWithChildren
   ProfileRoute: typeof ProfileRoute
+  SettingsRoute: typeof SettingsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
@@ -200,6 +220,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ModulesRoute: ModulesRouteWithChildren,
   ProfileRoute: ProfileRoute,
+  SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
