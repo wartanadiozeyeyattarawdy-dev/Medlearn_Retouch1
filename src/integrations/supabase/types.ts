@@ -257,19 +257,31 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_emoji: string
+          bio: string | null
           created_at: string
           full_name: string | null
           id: string
+          public_profile: boolean
+          theme: string
         }
         Insert: {
+          avatar_emoji?: string
+          bio?: string | null
           created_at?: string
           full_name?: string | null
           id: string
+          public_profile?: boolean
+          theme?: string
         }
         Update: {
+          avatar_emoji?: string
+          bio?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
+          public_profile?: boolean
+          theme?: string
         }
         Relationships: []
       }
