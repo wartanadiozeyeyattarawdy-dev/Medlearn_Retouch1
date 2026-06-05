@@ -1,6 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { DuoButton } from "@/components/DuoButton";
 import { Flame, Heart, Zap, Trophy, Brain, Swords, Sparkles, GraduationCap } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
   component: Landing,
@@ -13,6 +16,15 @@ export const Route = createFileRoute("/")({
 });
 
 function Landing() {
+  const navigate = useNavigate();
+  const [checked, setChecked] = useState(false);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) navigate({ to: "/modules" });
+      else setChecked(true);
+    });
+  }, [navigate]);
+  if (!checked) return <div className="min-h-screen" />;
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-primary/5">
       <header className="container mx-auto flex items-center justify-between p-6">
