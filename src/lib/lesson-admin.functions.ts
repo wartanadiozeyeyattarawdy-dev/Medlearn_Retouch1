@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { callAI } from "./ai-gateway";
+import { callAI, parseAIJsonResponse } from "./ai-gateway";
 
 async function assertAdmin(supabase: import("@supabase/supabase-js").SupabaseClient, userId: string) {
   const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
@@ -25,6 +24,7 @@ export const adminCreateModule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin
       .from("modules")
       .insert({
@@ -46,13 +46,14 @@ export const adminGetModule = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const [{ data: m }, { data: lessons }, { data: abbr }, { data: questions }] = await Promise.all([
       supabaseAdmin.from("modules").select("*").eq("id", data.id).maybeSingle(),
       supabaseAdmin.from("lessons").select("*").eq("module_id", data.id).order("ord"),
       supabaseAdmin.from("abbreviations").select("*").eq("module_id", data.id).order("short"),
       supabaseAdmin
         .from("questions")
-        .select("id,stem,source,lesson_id,ord,choices(id,letter,text,is_correct,explanation)")
+        .select("id,stem,source,lesson_id,ord,teacher_note,image_url,video_url,choices(id,letter,text,is_correct,explanation)")
         .eq("module_id", data.id)
         .order("ord"),
     ]);
