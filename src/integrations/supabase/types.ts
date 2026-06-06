@@ -289,29 +289,38 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          image_url: string | null
           lesson_id: string | null
           module_id: string
           ord: number
           source: string
           stem: string
+          teacher_note: string | null
+          video_url: string | null
         }
         Insert: {
           created_at?: string
           id?: string
+          image_url?: string | null
           lesson_id?: string | null
           module_id: string
           ord?: number
           source?: string
           stem: string
+          teacher_note?: string | null
+          video_url?: string | null
         }
         Update: {
           created_at?: string
           id?: string
+          image_url?: string | null
           lesson_id?: string | null
           module_id?: string
           ord?: number
           source?: string
           stem?: string
+          teacher_note?: string | null
+          video_url?: string | null
         }
         Relationships: [
           {

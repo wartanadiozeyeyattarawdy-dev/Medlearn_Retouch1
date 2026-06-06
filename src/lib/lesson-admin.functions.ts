@@ -1,15 +1,54 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { callAI } from "./ai-gateway";
+import { callAI, parseAIJsonResponse } from "./ai-gateway";
+
+type AdminChoiceInput = {
+  id?: string;
+  letter: string;
+  text: string;
+  is_correct: boolean;
+  explanation: string;
+};
 
 async function assertAdmin(supabase: import("@supabase/supabase-js").SupabaseClient, userId: string) {
   const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
   if (!(data ?? []).some((r) => r.role === "admin")) throw new Error("Admin requis");
 }
 
-/* ---------- Create empty module ---------- */
+async function getAdminClient() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
+
+function normalizeOptionalText(value?: string | null) {
+  const cleaned = value?.trim();
+  return cleaned ? cleaned : null;
+}
+
+async function replaceQuestionChoices(questionId: string, choices: AdminChoiceInput[]) {
+  const supabaseAdmin = await getAdminClient();
+  await supabaseAdmin.from("choices").delete().eq("question_id", questionId);
+
+  const normalized = choices
+    .map((choice, index) => ({
+      letter: (choice.letter || String.fromCharCode(97 + index)).slice(0, 4).toLowerCase(),
+      text: choice.text?.trim() ?? "",
+      is_correct: !!choice.is_correct,
+      explanation: choice.explanation?.trim() ?? "",
+    }))
+    .filter((choice) => choice.text.length > 0);
+
+  if (!normalized.length) return;
+
+  await supabaseAdmin.from("choices").insert(
+    normalized.map((choice) => ({
+      question_id: questionId,
+      ...choice,
+    })),
+  );
+}
+
 export const adminCreateModule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -25,6 +64,7 @@ export const adminCreateModule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const supabaseAdmin = await getAdminClient();
     const { data: row, error } = await supabaseAdmin
       .from("modules")
       .insert({
@@ -40,26 +80,31 @@ export const adminCreateModule = createServerFn({ method: "POST" })
     return { id: row.id };
   });
 
-/* ---------- Get full module for editing ---------- */
 export const adminGetModule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const [{ data: m }, { data: lessons }, { data: abbr }, { data: questions }] = await Promise.all([
+    const supabaseAdmin = await getAdminClient();
+    const [{ data: module }, { data: lessons }, { data: abbreviations }, { data: questions }] = await Promise.all([
       supabaseAdmin.from("modules").select("*").eq("id", data.id).maybeSingle(),
       supabaseAdmin.from("lessons").select("*").eq("module_id", data.id).order("ord"),
       supabaseAdmin.from("abbreviations").select("*").eq("module_id", data.id).order("short"),
       supabaseAdmin
         .from("questions")
-        .select("id,stem,source,lesson_id,ord,choices(id,letter,text,is_correct,explanation)")
+        .select("id,stem,source,lesson_id,ord,teacher_note,image_url,video_url,choices(id,letter,text,is_correct,explanation)")
         .eq("module_id", data.id)
         .order("ord"),
     ]);
-    return { module: m, lessons: lessons ?? [], abbreviations: abbr ?? [], questions: questions ?? [] };
+
+    return {
+      module,
+      lessons: lessons ?? [],
+      abbreviations: abbreviations ?? [],
+      questions: questions ?? [],
+    };
   });
 
-/* ---------- Add lesson from raw text (AI structures it) ---------- */
 export const adminAddLessonFromText = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -74,6 +119,7 @@ export const adminAddLessonFromText = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const supabaseAdmin = await getAdminClient();
 
     const system = `Tu es un assistant pédagogique médical. Tu reçois UNE leçon brute (texte). Tu retournes UNIQUEMENT du JSON valide.
 SCHEMA:
@@ -84,7 +130,7 @@ SCHEMA:
   "traps": "pièges fréquents du professeur, erreurs classiques à éviter",
   "mini_case": "mini-cas clinique illustratif avec question",
   "abbreviations": [{"short":"AVC","full_form":"Accident vasculaire cérébral"}],
-  "questions": [{"stem":"...","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"pourquoi vraie/fausse"}]}]
+  "questions": [{"stem":"...","teacher_note":"...","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"pourquoi vraie/fausse"}]}]
 }
 Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes réponses, chaque proposition avec explanation).`;
 
@@ -94,12 +140,7 @@ Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes ré
       jsonMode: true,
       model: "google/gemini-2.5-pro",
     });
-    let parsed: any;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      throw new Error("L'IA n'a pas renvoyé un JSON valide.");
-    }
+    const parsed = parseAIJsonResponse<any>(raw);
 
     const { data: maxOrdRow } = await supabaseAdmin
       .from("lessons")
@@ -110,7 +151,7 @@ Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes ré
       .maybeSingle();
     const nextOrd = (maxOrdRow?.ord ?? -1) + 1;
 
-    const { data: lRow, error: lErr } = await supabaseAdmin
+    const { data: lessonRow, error: lessonError } = await supabaseAdmin
       .from("lessons")
       .insert({
         module_id: data.moduleId,
@@ -123,47 +164,39 @@ Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes ré
       })
       .select()
       .single();
-    if (lErr || !lRow) throw new Error(lErr?.message || "lesson insert failed");
+    if (lessonError || !lessonRow) throw new Error(lessonError?.message || "lesson insert failed");
 
-    for (const a of parsed.abbreviations ?? []) {
-      if (!a.short || !a.full_form) continue;
+    for (const abbr of parsed.abbreviations ?? []) {
+      if (!abbr.short || !abbr.full_form) continue;
       await supabaseAdmin
         .from("abbreviations")
-        .upsert(
-          { module_id: data.moduleId, short: a.short, full_form: a.full_form },
-          { onConflict: "module_id,short" },
-        );
+        .upsert({ module_id: data.moduleId, short: abbr.short, full_form: abbr.full_form }, { onConflict: "module_id,short" });
     }
 
     let qOrd = 0;
-    for (const q of parsed.questions ?? []) {
-      const { data: qRow } = await supabaseAdmin
+    for (const question of parsed.questions ?? []) {
+      if (!question?.stem) continue;
+      const { data: questionRow } = await supabaseAdmin
         .from("questions")
         .insert({
           module_id: data.moduleId,
-          lesson_id: lRow.id,
+          lesson_id: lessonRow.id,
           source: "admin",
-          stem: q.stem,
+          stem: question.stem,
           ord: qOrd++,
+          teacher_note: normalizeOptionalText(question.teacher_note),
+          image_url: normalizeOptionalText(question.image_url),
+          video_url: normalizeOptionalText(question.video_url),
         })
         .select()
         .single();
-      if (!qRow) continue;
-      for (const c of q.choices ?? []) {
-        await supabaseAdmin.from("choices").insert({
-          question_id: qRow.id,
-          letter: c.letter,
-          text: c.text,
-          is_correct: !!c.is_correct,
-          explanation: c.explanation || "",
-        });
-      }
+      if (!questionRow) continue;
+      await replaceQuestionChoices(questionRow.id, question.choices ?? []);
     }
 
-    return { lessonId: lRow.id, qcm: parsed.questions?.length ?? 0 };
+    return { lessonId: lessonRow.id, qcm: parsed.questions?.length ?? 0 };
   });
 
-/* ---------- Regenerate one part of an existing lesson ---------- */
 export const adminRegenerateLessonPart = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -176,30 +209,33 @@ export const adminRegenerateLessonPart = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const supabaseAdmin = await getAdminClient();
     const { data: lesson } = await supabaseAdmin
       .from("lessons")
       .select("title,full_text,summary")
       .eq("id", data.lessonId)
       .maybeSingle();
     if (!lesson) throw new Error("Leçon introuvable");
+
     const src = lesson.full_text || lesson.summary || "";
-    const instr = {
+    const instruction = {
       summary: "Génère un RÉSUMÉ clair, structuré en markdown avec puces, qui couvre l'essentiel de la leçon.",
       traps: "Liste les PIÈGES CLASSIQUES du professeur, erreurs fréquentes, confusions à éviter (markdown).",
       mini_case: "Écris un MINI-CAS CLINIQUE illustratif avec une question ouverte à la fin.",
     }[data.part];
+
     const out = await callAI({
       system: "Tu es un pédagogue médical. Réponds en français, en markdown, sans préambule.",
-      prompt: `${instr}\n\nLEÇON: ${lesson.title}\n${src.slice(0, 14000)}`,
+      prompt: `${instruction}\n\nLEÇON: ${lesson.title}\n${src.slice(0, 14000)}`,
       model: "google/gemini-2.5-flash",
     });
-    const patch: Record<string, string> = { [data.part]: out.trim() };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await supabaseAdmin.from("lessons").update(patch as any).eq("id", data.lessonId);
+
+    const lessonUpdate: { summary?: string; traps?: string; mini_case?: string } = {};
+    lessonUpdate[data.part] = out.trim();
+    await supabaseAdmin.from("lessons").update(lessonUpdate).eq("id", data.lessonId);
     return { ok: true, content: out.trim() };
   });
 
-/* ---------- Generate QCMs for a specific lesson ---------- */
 export const adminGenerateLessonQcms = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -213,6 +249,7 @@ export const adminGenerateLessonQcms = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const supabaseAdmin = await getAdminClient();
     const { data: lesson } = await supabaseAdmin
       .from("lessons")
       .select("module_id,title,full_text,summary")
@@ -222,27 +259,23 @@ export const adminGenerateLessonQcms = createServerFn({ method: "POST" })
 
     const prompt = `Génère ${data.count} QCM en français pour la leçon ci-dessous.
 Chaque QCM: stem clair, 4 propositions a,b,c,d, 1 à 3 bonnes réponses, chaque proposition avec une explanation courte (pourquoi vraie/fausse).
-JSON strict: {"questions":[{"stem":"...","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]}]}
+Ajoute si pertinent un teacher_note court pour l'étudiant.
+JSON strict: {"questions":[{"stem":"...","teacher_note":"...","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]}]}
 
 LEÇON: ${lesson.title}
 ${(lesson.full_text || lesson.summary || "").slice(0, 14000)}`;
     const raw = await callAI({ prompt, jsonMode: true, model: "google/gemini-2.5-flash" });
-    let parsed: any;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      throw new Error("Réponse IA invalide");
-    }
+    const parsed = parseAIJsonResponse<any>(raw);
 
     if (data.replace) {
-      const { data: oldQs } = await supabaseAdmin
+      const { data: oldQuestions } = await supabaseAdmin
         .from("questions")
         .select("id")
         .eq("lesson_id", data.lessonId)
         .eq("source", "admin");
-      for (const q of oldQs ?? []) {
-        await supabaseAdmin.from("choices").delete().eq("question_id", q.id);
-        await supabaseAdmin.from("questions").delete().eq("id", q.id);
+      for (const question of oldQuestions ?? []) {
+        await supabaseAdmin.from("choices").delete().eq("question_id", question.id);
+        await supabaseAdmin.from("questions").delete().eq("id", question.id);
       }
     }
 
@@ -255,34 +288,31 @@ ${(lesson.full_text || lesson.summary || "").slice(0, 14000)}`;
       .maybeSingle();
     let qOrd = (maxOrdRow?.ord ?? -1) + 1;
     let count = 0;
-    for (const q of parsed.questions ?? []) {
-      const { data: qRow } = await supabaseAdmin
+
+    for (const question of parsed.questions ?? []) {
+      if (!question?.stem) continue;
+      const { data: questionRow } = await supabaseAdmin
         .from("questions")
         .insert({
           module_id: lesson.module_id,
           lesson_id: data.lessonId,
           source: "admin",
-          stem: q.stem,
+          stem: question.stem,
           ord: qOrd++,
+          teacher_note: normalizeOptionalText(question.teacher_note),
+          image_url: normalizeOptionalText(question.image_url),
+          video_url: normalizeOptionalText(question.video_url),
         })
         .select()
         .single();
-      if (!qRow) continue;
-      for (const c of q.choices ?? []) {
-        await supabaseAdmin.from("choices").insert({
-          question_id: qRow.id,
-          letter: c.letter,
-          text: c.text,
-          is_correct: !!c.is_correct,
-          explanation: c.explanation || "",
-        });
-      }
+      if (!questionRow) continue;
+      await replaceQuestionChoices(questionRow.id, question.choices ?? []);
       count++;
     }
+
     return { count };
   });
 
-/* ---------- Update lesson fields manually ---------- */
 export const adminUpdateLesson = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -300,51 +330,146 @@ export const adminUpdateLesson = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const supabaseAdmin = await getAdminClient();
     const { id, ...rest } = data;
     await supabaseAdmin.from("lessons").update(rest).eq("id", id);
     return { ok: true };
   });
 
-/* ---------- Delete lesson (+ cascade qcm) ---------- */
 export const adminDeleteLesson = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
-    const { data: qs } = await supabaseAdmin.from("questions").select("id").eq("lesson_id", data.id);
-    for (const q of qs ?? []) {
-      await supabaseAdmin.from("choices").delete().eq("question_id", q.id);
+    const supabaseAdmin = await getAdminClient();
+    const { data: questions } = await supabaseAdmin.from("questions").select("id").eq("lesson_id", data.id);
+    for (const question of questions ?? []) {
+      await supabaseAdmin.from("choices").delete().eq("question_id", question.id);
     }
     await supabaseAdmin.from("questions").delete().eq("lesson_id", data.id);
     await supabaseAdmin.from("lessons").delete().eq("id", data.id);
     return { ok: true };
   });
 
-/* ---------- Delete a single question ---------- */
+export const adminCreateQuestion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        moduleId: z.string().uuid(),
+        lessonId: z.string().uuid(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const supabaseAdmin = await getAdminClient();
+
+    const { data: maxOrdRow } = await supabaseAdmin
+      .from("questions")
+      .select("ord")
+      .eq("lesson_id", data.lessonId)
+      .order("ord", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { data: question, error } = await supabaseAdmin
+      .from("questions")
+      .insert({
+        module_id: data.moduleId,
+        lesson_id: data.lessonId,
+        source: "admin",
+        stem: "Nouvelle question",
+        ord: (maxOrdRow?.ord ?? -1) + 1,
+      })
+      .select()
+      .single();
+    if (error || !question) throw new Error(error?.message || "Question introuvable");
+
+    await replaceQuestionChoices(question.id, [
+      { letter: "a", text: "", is_correct: false, explanation: "" },
+      { letter: "b", text: "", is_correct: false, explanation: "" },
+      { letter: "c", text: "", is_correct: false, explanation: "" },
+      { letter: "d", text: "", is_correct: false, explanation: "" },
+    ]);
+
+    return { id: question.id };
+  });
+
+export const adminUpdateQuestion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        stem: z.string().min(1).max(500),
+        ord: z.number().int().min(0).max(999).optional(),
+        teacher_note: z.string().max(5000).optional().nullable(),
+        image_url: z.string().max(2000).optional().nullable(),
+        video_url: z.string().max(2000).optional().nullable(),
+        choices: z
+          .array(
+            z.object({
+              id: z.string().uuid().optional(),
+              letter: z.string().min(1).max(4),
+              text: z.string().max(500),
+              is_correct: z.boolean(),
+              explanation: z.string().max(2000),
+            }),
+          )
+          .min(2)
+          .max(8),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const supabaseAdmin = await getAdminClient();
+
+    const { id, choices, ...rest } = data;
+    const validChoices = choices.filter((choice) => choice.text.trim().length > 0);
+    if (!validChoices.some((choice) => choice.is_correct)) {
+      throw new Error("Il faut au moins une bonne réponse");
+    }
+
+    const { error } = await supabaseAdmin.from("questions").update({
+      ...rest,
+      teacher_note: normalizeOptionalText(rest.teacher_note),
+      image_url: normalizeOptionalText(rest.image_url),
+      video_url: normalizeOptionalText(rest.video_url),
+    }).eq("id", id);
+    if (error) throw new Error(error.message);
+
+    await replaceQuestionChoices(id, validChoices);
+    return { ok: true };
+  });
+
 export const adminDeleteQuestion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const supabaseAdmin = await getAdminClient();
     await supabaseAdmin.from("choices").delete().eq("question_id", data.id);
     await supabaseAdmin.from("questions").delete().eq("id", data.id);
     return { ok: true };
   });
 
-/* ---------- Abbreviations: AI extract + manual upsert ---------- */
 export const adminAutoExtractAbbreviations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ moduleId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const supabaseAdmin = await getAdminClient();
     const { data: lessons } = await supabaseAdmin
       .from("lessons")
       .select("full_text,summary")
       .eq("module_id", data.moduleId);
     const text = (lessons ?? [])
-      .map((l) => `${l.full_text}\n${l.summary}`)
+      .map((lesson: { full_text: string; summary: string }) => `${lesson.full_text}\n${lesson.summary}`)
       .join("\n\n")
       .slice(0, 18000);
+
     const raw = await callAI({
       system:
         "Tu extrais les abréviations médicales d'un cours. Retourne UNIQUEMENT du JSON: {\"abbreviations\":[{\"short\":\"AVC\",\"full_form\":\"Accident vasculaire cérébral\"}]}",
@@ -352,23 +477,17 @@ export const adminAutoExtractAbbreviations = createServerFn({ method: "POST" })
       jsonMode: true,
       model: "google/gemini-2.5-flash",
     });
-    let parsed: any;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      throw new Error("Réponse IA invalide");
-    }
+    const parsed = parseAIJsonResponse<any>(raw);
+
     let count = 0;
-    for (const a of parsed.abbreviations ?? []) {
-      if (!a.short || !a.full_form) continue;
+    for (const abbr of parsed.abbreviations ?? []) {
+      if (!abbr.short || !abbr.full_form) continue;
       await supabaseAdmin
         .from("abbreviations")
-        .upsert(
-          { module_id: data.moduleId, short: a.short, full_form: a.full_form },
-          { onConflict: "module_id,short" },
-        );
+        .upsert({ module_id: data.moduleId, short: abbr.short, full_form: abbr.full_form }, { onConflict: "module_id,short" });
       count++;
     }
+
     return { count };
   });
 
@@ -385,12 +504,10 @@ export const adminUpsertAbbreviation = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const supabaseAdmin = await getAdminClient();
     await supabaseAdmin
       .from("abbreviations")
-      .upsert(
-        { module_id: data.moduleId, short: data.short, full_form: data.full_form },
-        { onConflict: "module_id,short" },
-      );
+      .upsert({ module_id: data.moduleId, short: data.short, full_form: data.full_form }, { onConflict: "module_id,short" });
     return { ok: true };
   });
 
@@ -399,6 +516,7 @@ export const adminDeleteAbbreviation = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const supabaseAdmin = await getAdminClient();
     await supabaseAdmin.from("abbreviations").delete().eq("id", data.id);
     return { ok: true };
   });

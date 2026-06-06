@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { callAI } from "./ai-gateway";
+import { callAI, parseAIJsonResponse } from "./ai-gateway";
 
 async function assertAdmin(supabase: import("@supabase/supabase-js").SupabaseClient, userId: string) {
   const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
@@ -12,6 +11,7 @@ async function assertAdmin(supabase: import("@supabase/supabase-js").SupabaseCli
 export const promoteSelfToAdmin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     // Allow promotion only if there is no admin yet (bootstrap)
     const { data: existing } = await supabaseAdmin.from("user_roles").select("user_id").eq("role", "admin").limit(1);
     if ((existing ?? []).length > 0) throw new Error("Un admin existe déjà");
@@ -26,6 +26,7 @@ export const redeemAdminKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ key: z.string().min(1).max(200) }).parse(input))
   .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const expected = process.env.ADMIN_ACCESS_KEY;
     if (!expected) throw new Error("ADMIN_ACCESS_KEY non configuré");
     if (data.key.trim() !== expected.trim()) throw new Error("Clé invalide");
@@ -39,6 +40,7 @@ export const adminListModules = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
       .from("modules")
       .select("*, years(label)")
@@ -63,6 +65,7 @@ export const adminUpdateModule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { id, ...rest } = data;
     const { error } = await supabaseAdmin.from("modules").update(rest).eq("id", id);
     if (error) throw new Error(error.message);
@@ -74,6 +77,7 @@ export const adminDeleteModule = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.from("modules").delete().eq("id", data.id);
     return { ok: true };
   });
@@ -92,6 +96,7 @@ export const adminIngestText = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const system = `Tu es un assistant pédagogique. Tu reçois un cours médical brut (parfois plusieurs leçons, parfois des QCM mélangés).
 Tu dois retourner UNIQUEMENT du JSON valide structurant le contenu en module avec leçons, abréviations, QCM (admin), pièges du prof, mini-cas.
@@ -116,12 +121,7 @@ SCHEMA:
 
     const prompt = `${data.moduleName ? `Nom suggéré du module: ${data.moduleName}\n` : ""}TEXTE:\n${data.text}`;
     const raw = await callAI({ system, prompt, jsonMode: true, model: "google/gemini-2.5-pro" });
-    let parsed: any;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      throw new Error("L'IA n'a pas renvoyé de JSON valide. Réessayez.");
-    }
+    const parsed = parseAIJsonResponse<any>(raw);
 
     const moduleName = data.moduleName || parsed.module?.name || "Nouveau module";
     const { data: modRow, error: mErr } = await supabaseAdmin
