@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { callAI } from "./ai-gateway";
+import { callAI, parseAIJsonResponse } from "./ai-gateway";
 
 export const getQuestions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -100,19 +99,16 @@ COURS:
 ${text}`;
 
     const raw = await callAI({ prompt, jsonMode: true, model: "google/gemini-2.5-flash" });
-    let parsed: { questions: { stem: string; choices: { letter: string; text: string; is_correct: boolean; explanation: string }[] }[] };
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      throw new Error("Réponse IA invalide");
-    }
+    const parsed = parseAIJsonResponse<{ questions: { stem: string; choices: { letter: string; text: string; is_correct: boolean; explanation: string }[] }[] }>(raw);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // Insert with admin client (bypass RLS so any student can generate IA questions)
     // Tag as source='ai'. Clear previous AI questions for this module first.
     await supabaseAdmin.from("questions").delete().eq("module_id", data.moduleId).eq("source", "ai");
     const inserted = [];
-    for (let i = 0; i < parsed.questions.length; i++) {
+    for (let i = 0; i < (parsed.questions ?? []).length; i++) {
       const q = parsed.questions[i];
+      if (!q?.stem || !(q.choices ?? []).length) continue;
       const { data: qRow, error: qErr } = await supabaseAdmin
         .from("questions")
         .insert({ module_id: data.moduleId, source: "ai", stem: q.stem, ord: i })
