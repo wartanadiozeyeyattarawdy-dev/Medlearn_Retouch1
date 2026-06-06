@@ -230,7 +230,9 @@ export const adminRegenerateLessonPart = createServerFn({ method: "POST" })
       model: "google/gemini-2.5-flash",
     });
 
-    await supabaseAdmin.from("lessons").update({ [data.part]: out.trim() }).eq("id", data.lessonId);
+    const lessonUpdate: { summary?: string; traps?: string; mini_case?: string } = {};
+    lessonUpdate[data.part] = out.trim();
+    await supabaseAdmin.from("lessons").update(lessonUpdate).eq("id", data.lessonId);
     return { ok: true, content: out.trim() };
   });
 
