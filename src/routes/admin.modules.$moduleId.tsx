@@ -9,6 +9,8 @@ import {
   adminGenerateLessonQcms,
   adminUpdateLesson,
   adminDeleteLesson,
+  adminCreateQuestion,
+  adminUpdateQuestion,
   adminDeleteQuestion,
   adminAutoExtractAbbreviations,
   adminUpsertAbbreviation,
@@ -35,6 +37,8 @@ function ModuleEditor() {
   const genQcmFn = useServerFn(adminGenerateLessonQcms);
   const updateLessonFn = useServerFn(adminUpdateLesson);
   const deleteLessonFn = useServerFn(adminDeleteLesson);
+  const createQuestionFn = useServerFn(adminCreateQuestion);
+  const updateQuestionFn = useServerFn(adminUpdateQuestion);
   const deleteQuestionFn = useServerFn(adminDeleteQuestion);
   const extractAbbrFn = useServerFn(adminAutoExtractAbbreviations);
   const upsertAbbrFn = useServerFn(adminUpsertAbbreviation);
@@ -48,6 +52,7 @@ function ModuleEditor() {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [draft, setDraft] = useState<any>({});
   const [newAbbr, setNewAbbr] = useState({ short: "", full_form: "" });
