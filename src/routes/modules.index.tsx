@@ -11,7 +11,7 @@ import { DuoButton } from "@/components/DuoButton";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, Flame, Target, Zap } from "lucide-react";
 
-export const Route = createFileRoute("/modules")({ component: ModulesPage });
+export const Route = createFileRoute("/modules/")({ component: ModulesPage });
 
 type Year = { id: string; label: string; ord: number };
 type Mod = { id: string; name: string; emoji: string | null; description: string | null; year_id: string | null };
