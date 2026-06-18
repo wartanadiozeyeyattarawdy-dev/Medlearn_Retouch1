@@ -31,8 +31,10 @@ function AdminPage() {
   const [yearId, setYearId] = useState<string>("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [timer, setTimer] = useState(0);
   const [msg, setMsg] = useState<string | null>(null);
   const [newMod, setNewMod] = useState({ name: "", emoji: "📘", description: "" });
+  const progressEstimate = busy ? Math.min(96, 6 + timer * 1.5) : 0;
 
   const refresh = async () => {
     try { setMods(await listFn()); } catch (e) { setMsg((e as Error).message); }
@@ -43,6 +45,13 @@ function AdminPage() {
     yearsFn().then(setYears);
     if (me.isAdmin) refresh();
   }, [me]);
+
+  useEffect(() => {
+    if (!busy) return;
+    setTimer(0);
+    const interval = setInterval(() => setTimer((value) => value + 1), 1000);
+    return () => clearInterval(interval);
+  }, [busy]);
 
   if (loading || !me) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>;
 
@@ -109,18 +118,23 @@ function AdminPage() {
               </div>
             </div>
             <Textarea rows={10} value={text} onChange={(e) => setText(e.target.value)} placeholder="Collez ici un long cours brut..." />
+            {busy && (
+              <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 animate-slide-up">
+                <div className="flex justify-between gap-3 text-sm font-extrabold"><span>Génération IA du module</span><span>{timer}s · env. 60-120s</span></div>
+                <div className="mt-3 h-3 rounded-full bg-muted overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${progressEstimate}%` }} /></div>
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <Button disabled={busy || text.length < 50} onClick={async () => {
                 setBusy(true); setMsg(null);
                 try {
                   const r = await ingestFn({ data: { text, yearId: yearId || null, moduleName: name || undefined } });
-                  setMsg(`Module créé (${r.lessons} leçons).`);
-                  setText(""); setName("");
-                  refresh();
+                  setMsg(`Module créé (${r.lessons} leçons). Ouverture de l'éditeur...`);
+                  window.location.href = `/admin/modules/${r.moduleId}`;
                 } catch (e) { setMsg((e as Error).message); }
                 finally { setBusy(false); }
               }}>
-                {busy ? "Génération..." : "Générer le module"}
+                {busy ? `Génération en cours (${timer}s)...` : "Générer le module"}
               </Button>
               {msg && <span className="text-sm">{msg}</span>}
             </div>
