@@ -11,8 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ModulesIndexRouteImport } from './routes/modules.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
@@ -29,6 +31,11 @@ const ProfileRoute = ProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ModulesRoute = ModulesRouteImport.update({
+  id: '/modules',
+  path: '/modules',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LeaderboardRoute = LeaderboardRouteImport.update({
   id: '/leaderboard',
   path: '/leaderboard',
@@ -39,36 +46,43 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ModulesIndexRoute = ModulesIndexRouteImport.update({
-  id: '/modules/',
-  path: '/modules/',
-  getParentRoute: () => rootRouteImport,
+  id: '/',
+  path: '/',
+  getParentRoute: () => ModulesRoute,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
-  id: '/admin/',
-  path: '/admin/',
-  getParentRoute: () => rootRouteImport,
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
 } as any)
 const ModulesModuleIdRoute = ModulesModuleIdRouteImport.update({
-  id: '/modules/$moduleId',
-  path: '/modules/$moduleId',
-  getParentRoute: () => rootRouteImport,
+  id: '/$moduleId',
+  path: '/$moduleId',
+  getParentRoute: () => ModulesRoute,
 } as any)
 const AdminModulesModuleIdRoute = AdminModulesModuleIdRouteImport.update({
-  id: '/admin/modules/$moduleId',
-  path: '/admin/modules/$moduleId',
-  getParentRoute: () => rootRouteImport,
+  id: '/modules/$moduleId',
+  path: '/modules/$moduleId',
+  getParentRoute: () => AdminRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
   '/leaderboard': typeof LeaderboardRoute
+  '/modules': typeof ModulesRouteWithChildren
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
@@ -90,8 +104,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
   '/leaderboard': typeof LeaderboardRoute
+  '/modules': typeof ModulesRouteWithChildren
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
@@ -103,8 +119,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/auth'
     | '/leaderboard'
+    | '/modules'
     | '/profile'
     | '/settings'
     | '/modules/$moduleId'
@@ -125,8 +143,10 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/auth'
     | '/leaderboard'
+    | '/modules'
     | '/profile'
     | '/settings'
     | '/modules/$moduleId'
@@ -137,14 +157,12 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
   AuthRoute: typeof AuthRoute
   LeaderboardRoute: typeof LeaderboardRoute
+  ModulesRoute: typeof ModulesRouteWithChildren
   ProfileRoute: typeof ProfileRoute
   SettingsRoute: typeof SettingsRoute
-  ModulesModuleIdRoute: typeof ModulesModuleIdRoute
-  AdminIndexRoute: typeof AdminIndexRoute
-  ModulesIndexRoute: typeof ModulesIndexRoute
-  AdminModulesModuleIdRoute: typeof AdminModulesModuleIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -163,6 +181,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/modules': {
+      id: '/modules'
+      path: '/modules'
+      fullPath: '/modules'
+      preLoaderRoute: typeof ModulesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/leaderboard': {
       id: '/leaderboard'
       path: '/leaderboard'
@@ -177,6 +202,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -186,45 +218,68 @@ declare module '@tanstack/react-router' {
     }
     '/modules/': {
       id: '/modules/'
-      path: '/modules'
+      path: '/'
       fullPath: '/modules/'
       preLoaderRoute: typeof ModulesIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ModulesRoute
     }
     '/admin/': {
       id: '/admin/'
-      path: '/admin'
+      path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/modules/$moduleId': {
       id: '/modules/$moduleId'
-      path: '/modules/$moduleId'
+      path: '/$moduleId'
       fullPath: '/modules/$moduleId'
       preLoaderRoute: typeof ModulesModuleIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ModulesRoute
     }
     '/admin/modules/$moduleId': {
       id: '/admin/modules/$moduleId'
-      path: '/admin/modules/$moduleId'
+      path: '/modules/$moduleId'
       fullPath: '/admin/modules/$moduleId'
       preLoaderRoute: typeof AdminModulesModuleIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AdminRoute
     }
   }
 }
 
+interface AdminRouteChildren {
+  AdminIndexRoute: typeof AdminIndexRoute
+  AdminModulesModuleIdRoute: typeof AdminModulesModuleIdRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminIndexRoute: AdminIndexRoute,
+  AdminModulesModuleIdRoute: AdminModulesModuleIdRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
+interface ModulesRouteChildren {
+  ModulesModuleIdRoute: typeof ModulesModuleIdRoute
+  ModulesIndexRoute: typeof ModulesIndexRoute
+}
+
+const ModulesRouteChildren: ModulesRouteChildren = {
+  ModulesModuleIdRoute: ModulesModuleIdRoute,
+  ModulesIndexRoute: ModulesIndexRoute,
+}
+
+const ModulesRouteWithChildren =
+  ModulesRoute._addFileChildren(ModulesRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
   AuthRoute: AuthRoute,
   LeaderboardRoute: LeaderboardRoute,
+  ModulesRoute: ModulesRouteWithChildren,
   ProfileRoute: ProfileRoute,
   SettingsRoute: SettingsRoute,
-  ModulesModuleIdRoute: ModulesModuleIdRoute,
-  AdminIndexRoute: AdminIndexRoute,
-  ModulesIndexRoute: ModulesIndexRoute,
-  AdminModulesModuleIdRoute: AdminModulesModuleIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
