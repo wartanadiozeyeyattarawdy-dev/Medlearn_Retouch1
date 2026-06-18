@@ -230,7 +230,7 @@ export const adminRegenerateLessonPart = createServerFn({ method: "POST" })
     const out = await callAI({
       system: "Tu es un pédagogue médical. Réponds en français, en markdown, sans préambule.",
       prompt: `${instruction}\n\nLEÇON: ${lesson.title}\n${src.slice(0, 14000)}`,
-      model: "google/gemini-1.5-flash",
+      model: "google/gemini-3-flash-preview",
     });
 
     const lessonUpdate: { summary?: string; traps?: string; mini_case?: string } = {};
