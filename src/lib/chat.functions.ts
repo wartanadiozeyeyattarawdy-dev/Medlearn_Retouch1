@@ -81,6 +81,6 @@ ${parts.join("\n\n") || "(aucun contexte spécifique)"}
       .join("\n");
     const prompt = `${history ? history + "\n" : ""}Élève: ${data.question}\nTuteur:`;
 
-    const answer = await callAI({ system, prompt, model: "google/gemini-2.5-flash" });
+    const answer = await callAI({ system, prompt, model: "google/gemini-3-flash-preview" });
     return { answer };
   });

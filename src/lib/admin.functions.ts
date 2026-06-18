@@ -12,7 +12,6 @@ export const promoteSelfToAdmin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // Allow promotion only if there is no admin yet (bootstrap)
     const { data: existing } = await supabaseAdmin.from("user_roles").select("user_id").eq("role", "admin").limit(1);
     if ((existing ?? []).length > 0) throw new Error("Un admin existe déjà");
     await supabaseAdmin
@@ -21,7 +20,6 @@ export const promoteSelfToAdmin = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** Devenir admin avec une clé secrète (ADMIN_ACCESS_KEY). Fonctionne pour n'importe quel compte connecté. */
 export const redeemAdminKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ key: z.string().min(1).max(200) }).parse(input))
@@ -82,7 +80,6 @@ export const adminDeleteModule = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// AI ingestion: take raw text → JSON structure → insert
 export const adminIngestText = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -98,29 +95,22 @@ export const adminIngestText = createServerFn({ method: "POST" })
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const system = `Tu es un assistant pédagogique. Tu reçois un cours médical brut (parfois plusieurs leçons, parfois des QCM mélangés).
-Tu dois retourner UNIQUEMENT du JSON valide structurant le contenu en module avec leçons, abréviations, QCM (admin), pièges du prof, mini-cas.
-Pour chaque QCM (a,b,c,d) chaque proposition doit avoir une "explanation" (pourquoi vraie ou pourquoi fausse).
-
+    // Limiter la taille pour éviter les échecs de tokens en sortie
+    const truncatedText = data.text.slice(0, 70000);
+    const system = `Tu es un assistant médical. Structure ce cours brut en JSON.
 SCHEMA:
 {
-  "module": {"name":"...", "emoji":"📘", "description":"...", "learning_info":"conseils pour apprendre"},
-  "abbreviations": [{"short":"IR","full_form":"Insuffisance rénale"}],
+  "module": {"name":"...", "emoji":"📘", "description":"...", "learning_info":"..."},
+  "abbreviations": [{"short":"...","full_form":"..."}],
   "lessons": [{
-    "title":"...",
-    "full_text":"texte complet recopié et corrigé",
-    "summary":"résumé clair et structuré en markdown",
-    "traps":"pièges classiques du prof",
-    "mini_case":"mini-cas clinique",
-    "questions":[{
-      "stem":"...",
-      "choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]
-    }]
+    "title":"...", "full_text":"...", "summary":"markdown", "traps":"markdown", "mini_case":"...",
+    "questions":[{"stem":"...", "teacher_note":"...", "image_url":"", "video_url":"", "choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]}]
   }]
-}`;
+}
+Important: Sois synthétique dans "full_text" et "summary" pour ne pas saturer la réponse.`;
 
-    const prompt = `${data.moduleName ? `Nom suggéré du module: ${data.moduleName}\n` : ""}TEXTE:\n${data.text}`;
-    const raw = await callAI({ system, prompt, jsonMode: true, model: "google/gemini-2.5-pro" });
+    const prompt = `${data.moduleName ? `Nom: ${data.moduleName}\n` : ""}TEXTE:\n${truncatedText}`;
+    const raw = await callAI({ system, prompt, jsonMode: true, model: "google/gemini-3-flash-preview" });
     const parsed = parseAIJsonResponse<any>(raw);
 
     const moduleName = data.moduleName || parsed.module?.name || "Nouveau module";
@@ -139,16 +129,16 @@ SCHEMA:
 
     for (const a of parsed.abbreviations ?? []) {
       if (!a.short || !a.full_form) continue;
-      await supabaseAdmin
-        .from("abbreviations")
-        .upsert({ module_id: modRow.id, short: a.short, full_form: a.full_form }, { onConflict: "module_id,short" });
+      await supabaseAdmin.from("abbreviations").upsert({ module_id: modRow.id, short: a.short, full_form: a.full_form }, { onConflict: "module_id,short" });
     }
 
+    const parsedLessons = Array.isArray(parsed.lessons) && parsed.lessons.length > 0
+      ? parsed.lessons
+      : [{ title: moduleName, full_text: truncatedText, summary: parsed.module?.description || "Résumé à compléter.", traps: "", mini_case: "", questions: [] }];
+
     let lessonOrd = 0;
-    for (const l of parsed.lessons ?? []) {
-      const { data: lRow } = await supabaseAdmin
-        .from("lessons")
-        .insert({
+    for (const l of parsedLessons) {
+      const { data: lRow } = await supabaseAdmin.from("lessons").insert({
           module_id: modRow.id,
           title: l.title || `Leçon ${lessonOrd + 1}`,
           ord: lessonOrd++,
@@ -156,23 +146,20 @@ SCHEMA:
           summary: l.summary || "",
           traps: l.traps || "",
           mini_case: l.mini_case || "",
-        })
-        .select()
-        .single();
+        }).select().single();
       if (!lRow) continue;
       let qOrd = 0;
       for (const q of l.questions ?? []) {
-        const { data: qRow } = await supabaseAdmin
-          .from("questions")
-          .insert({
+        const { data: qRow } = await supabaseAdmin.from("questions").insert({
             module_id: modRow.id,
             lesson_id: lRow.id,
             source: "admin",
             stem: q.stem,
             ord: qOrd++,
-          })
-          .select()
-          .single();
+            teacher_note: q.teacher_note || null,
+            image_url: q.image_url || null,
+            video_url: q.video_url || null,
+          }).select().single();
         if (!qRow) continue;
         for (const c of q.choices ?? []) {
           await supabaseAdmin.from("choices").insert({
@@ -185,6 +172,5 @@ SCHEMA:
         }
       }
     }
-
-    return { moduleId: modRow.id, lessons: parsed.lessons?.length ?? 0 };
+    return { moduleId: modRow.id, lessons: parsedLessons.length };
   });

@@ -86,7 +86,7 @@ export const adminGetModule = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     const supabaseAdmin = await getAdminClient();
-    const [{ data: module }, { data: lessons }, { data: abbreviations }, { data: questions }] = await Promise.all([
+    const [{ data: module }, { data: lessons }, { data: abbreviations }, { data: questions }, { data: years }] = await Promise.all([
       supabaseAdmin.from("modules").select("*").eq("id", data.id).maybeSingle(),
       supabaseAdmin.from("lessons").select("*").eq("module_id", data.id).order("ord"),
       supabaseAdmin.from("abbreviations").select("*").eq("module_id", data.id).order("short"),
@@ -95,6 +95,7 @@ export const adminGetModule = createServerFn({ method: "POST" })
         .select("id,stem,source,lesson_id,ord,teacher_note,image_url,video_url,choices(id,letter,text,is_correct,explanation)")
         .eq("module_id", data.id)
         .order("ord"),
+      supabaseAdmin.from("years").select("*").order("ord"),
     ]);
 
     return {
@@ -102,6 +103,7 @@ export const adminGetModule = createServerFn({ method: "POST" })
       lessons: lessons ?? [],
       abbreviations: abbreviations ?? [],
       questions: questions ?? [],
+      years: years ?? [],
     };
   });
 
@@ -125,8 +127,8 @@ export const adminAddLessonFromText = createServerFn({ method: "POST" })
 SCHEMA:
 {
   "title": "titre court de la leçon",
-  "full_text": "texte complet relu, corrigé, bien structuré en markdown",
-  "summary": "résumé clair et didactique en markdown avec bullet points",
+  "full_text": "texte structuré (max 2000 mots pour éviter troncature JSON)",
+  "summary": "résumé synthétique",
   "traps": "pièges fréquents du professeur, erreurs classiques à éviter",
   "mini_case": "mini-cas clinique illustratif avec question",
   "abbreviations": [{"short":"AVC","full_form":"Accident vasculaire cérébral"}],
@@ -136,9 +138,9 @@ Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes ré
 
     const raw = await callAI({
       system,
-      prompt: `LEÇON BRUTE:\n${data.rawText}`,
+      prompt: `LEÇON BRUTE:\n${data.rawText.slice(0, 70000)}`,
       jsonMode: true,
-      model: "google/gemini-2.5-pro",
+      model: "google/gemini-3-flash-preview",
     });
     const parsed = parseAIJsonResponse<any>(raw);
 
@@ -157,7 +159,7 @@ Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes ré
         module_id: data.moduleId,
         title: parsed.title || `Leçon ${nextOrd + 1}`,
         ord: nextOrd,
-        full_text: parsed.full_text || data.rawText,
+        full_text: parsed.full_text || data.rawText.slice(0, 70000),
         summary: parsed.summary || "",
         traps: parsed.traps || "",
         mini_case: parsed.mini_case || "",
@@ -173,8 +175,9 @@ Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes ré
         .upsert({ module_id: data.moduleId, short: abbr.short, full_form: abbr.full_form }, { onConflict: "module_id,short" });
     }
 
+    const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
     let qOrd = 0;
-    for (const question of parsed.questions ?? []) {
+    for (const question of questions) {
       if (!question?.stem) continue;
       const { data: questionRow } = await supabaseAdmin
         .from("questions")
@@ -194,7 +197,7 @@ Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes ré
       await replaceQuestionChoices(questionRow.id, question.choices ?? []);
     }
 
-    return { lessonId: lessonRow.id, qcm: parsed.questions?.length ?? 0 };
+    return { lessonId: lessonRow.id, qcm: questions.length };
   });
 
 export const adminRegenerateLessonPart = createServerFn({ method: "POST" })
@@ -227,7 +230,7 @@ export const adminRegenerateLessonPart = createServerFn({ method: "POST" })
     const out = await callAI({
       system: "Tu es un pédagogue médical. Réponds en français, en markdown, sans préambule.",
       prompt: `${instruction}\n\nLEÇON: ${lesson.title}\n${src.slice(0, 14000)}`,
-      model: "google/gemini-2.5-flash",
+      model: "google/gemini-3-flash-preview",
     });
 
     const lessonUpdate: { summary?: string; traps?: string; mini_case?: string } = {};
@@ -264,7 +267,7 @@ JSON strict: {"questions":[{"stem":"...","teacher_note":"...","choices":[{"lette
 
 LEÇON: ${lesson.title}
 ${(lesson.full_text || lesson.summary || "").slice(0, 14000)}`;
-    const raw = await callAI({ prompt, jsonMode: true, model: "google/gemini-2.5-flash" });
+    const raw = await callAI({ prompt, jsonMode: true, model: "google/gemini-3-flash-preview" });
     const parsed = parseAIJsonResponse<any>(raw);
 
     if (data.replace) {
@@ -289,7 +292,8 @@ ${(lesson.full_text || lesson.summary || "").slice(0, 14000)}`;
     let qOrd = (maxOrdRow?.ord ?? -1) + 1;
     let count = 0;
 
-    for (const question of parsed.questions ?? []) {
+    const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
+    for (const question of questions) {
       if (!question?.stem) continue;
       const { data: questionRow } = await supabaseAdmin
         .from("questions")
@@ -475,7 +479,7 @@ export const adminAutoExtractAbbreviations = createServerFn({ method: "POST" })
         "Tu extrais les abréviations médicales d'un cours. Retourne UNIQUEMENT du JSON: {\"abbreviations\":[{\"short\":\"AVC\",\"full_form\":\"Accident vasculaire cérébral\"}]}",
       prompt: text,
       jsonMode: true,
-      model: "google/gemini-2.5-flash",
+      model: "google/gemini-3-flash-preview",
     });
     const parsed = parseAIJsonResponse<any>(raw);
 

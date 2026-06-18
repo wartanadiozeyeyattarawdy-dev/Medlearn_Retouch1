@@ -4,12 +4,12 @@ import { submitAttempt } from "@/lib/qcm.functions";
 import { checkAndAwardAchievements } from "@/lib/gamification.functions";
 import { DuoButton } from "@/components/DuoButton";
 import { Confetti } from "@/components/Confetti";
-import { CheckCircle2, XCircle, Heart, Zap, Trophy } from "lucide-react";
+import { CheckCircle2, XCircle, Heart, Zap, Trophy, StickyNote, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AbbreviationText } from "./AbbreviationText";
 
 type Choice = { id: string; letter: string; text: string; is_correct: boolean; explanation: string };
-type Question = { id: string; stem: string; choices: Choice[] };
+type Question = { id: string; stem: string; teacher_note?: string | null; image_url?: string | null; video_url?: string | null; choices: Choice[] };
 
 export function QcmRunner({
   questions, abbreviations, onActiveQuestion, onStatsChange,
@@ -92,6 +92,26 @@ export function QcmRunner({
         <div className="font-extrabold text-lg mb-5">
           <AbbreviationText text={q.stem} abbreviations={abbreviations} />
         </div>
+        {(q.teacher_note || q.image_url || q.video_url) && (
+          <div className="mb-5 space-y-3">
+            {q.teacher_note && (
+              <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-3 text-sm">
+                <p className="mb-1 flex items-center gap-2 font-extrabold text-primary"><StickyNote className="h-4 w-4" /> Note</p>
+                <AbbreviationText text={q.teacher_note} abbreviations={abbreviations} />
+              </div>
+            )}
+            {q.image_url && (
+              <div className="overflow-hidden rounded-xl border-2 border-border bg-muted">
+                <img src={q.image_url} alt="Illustration du QCM" className="max-h-80 w-full object-contain" loading="lazy" />
+              </div>
+            )}
+            {q.video_url && (
+              <a href={q.video_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border-2 border-border px-3 py-2 text-sm font-extrabold hover:border-primary">
+                <Video className="h-4 w-4 text-primary" /> Ouvrir la vidéo
+              </a>
+            )}
+          </div>
+        )}
         <div className="space-y-2">
           {q.choices.slice().sort((a,b) => a.letter.localeCompare(b.letter)).map((c) => {
             const picked = chosenSet.has(c.letter);

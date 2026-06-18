@@ -16,6 +16,8 @@ import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ModulesIndexRouteImport } from './routes/modules.index'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as ModulesModuleIdRouteImport } from './routes/modules.$moduleId'
 import { Route as AdminModulesModuleIdRouteImport } from './routes/admin.modules.$moduleId'
 
@@ -54,6 +56,16 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ModulesIndexRoute = ModulesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ModulesRoute,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
 const ModulesModuleIdRoute = ModulesModuleIdRouteImport.update({
   id: '/$moduleId',
   path: '/$moduleId',
@@ -74,17 +86,19 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
+  '/admin/': typeof AdminIndexRoute
+  '/modules/': typeof ModulesIndexRoute
   '/admin/modules/$moduleId': typeof AdminModulesModuleIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
   '/leaderboard': typeof LeaderboardRoute
-  '/modules': typeof ModulesRouteWithChildren
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
+  '/admin': typeof AdminIndexRoute
+  '/modules': typeof ModulesIndexRoute
   '/admin/modules/$moduleId': typeof AdminModulesModuleIdRoute
 }
 export interface FileRoutesById {
@@ -97,6 +111,8 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
+  '/admin/': typeof AdminIndexRoute
+  '/modules/': typeof ModulesIndexRoute
   '/admin/modules/$moduleId': typeof AdminModulesModuleIdRoute
 }
 export interface FileRouteTypes {
@@ -110,17 +126,19 @@ export interface FileRouteTypes {
     | '/profile'
     | '/settings'
     | '/modules/$moduleId'
+    | '/admin/'
+    | '/modules/'
     | '/admin/modules/$moduleId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/admin'
     | '/auth'
     | '/leaderboard'
-    | '/modules'
     | '/profile'
     | '/settings'
     | '/modules/$moduleId'
+    | '/admin'
+    | '/modules'
     | '/admin/modules/$moduleId'
   id:
     | '__root__'
@@ -132,6 +150,8 @@ export interface FileRouteTypes {
     | '/profile'
     | '/settings'
     | '/modules/$moduleId'
+    | '/admin/'
+    | '/modules/'
     | '/admin/modules/$moduleId'
   fileRoutesById: FileRoutesById
 }
@@ -196,6 +216,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/modules/': {
+      id: '/modules/'
+      path: '/'
+      fullPath: '/modules/'
+      preLoaderRoute: typeof ModulesIndexRouteImport
+      parentRoute: typeof ModulesRoute
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/modules/$moduleId': {
       id: '/modules/$moduleId'
       path: '/$moduleId'
@@ -214,10 +248,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
+  AdminIndexRoute: typeof AdminIndexRoute
   AdminModulesModuleIdRoute: typeof AdminModulesModuleIdRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminIndexRoute: AdminIndexRoute,
   AdminModulesModuleIdRoute: AdminModulesModuleIdRoute,
 }
 
@@ -225,10 +261,12 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface ModulesRouteChildren {
   ModulesModuleIdRoute: typeof ModulesModuleIdRoute
+  ModulesIndexRoute: typeof ModulesIndexRoute
 }
 
 const ModulesRouteChildren: ModulesRouteChildren = {
   ModulesModuleIdRoute: ModulesModuleIdRoute,
+  ModulesIndexRoute: ModulesIndexRoute,
 }
 
 const ModulesRouteWithChildren =

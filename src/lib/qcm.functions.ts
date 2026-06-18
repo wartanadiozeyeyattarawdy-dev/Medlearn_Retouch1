@@ -85,6 +85,7 @@ export const generateAIQuestions = createServerFn({ method: "POST" })
       .map((l) => `## ${l.title}\n${l.full_text || l.summary}`)
       .join("\n\n")
       .slice(0, 18000);
+    if (!text.trim()) throw new Error("Ce module n'a pas encore de contenu de leçon pour générer des QCM IA.");
 
     const prompt = `Tu es un enseignant en médecine. Génère ${data.count} QCM (questions à choix multiples) à partir du cours ci-dessous, en français.
 Pour chaque question :
@@ -98,7 +99,7 @@ Réponds en JSON strict suivant ce schéma :
 COURS:
 ${text}`;
 
-    const raw = await callAI({ prompt, jsonMode: true, model: "google/gemini-2.5-flash" });
+    const raw = await callAI({ prompt, jsonMode: true, model: "google/gemini-3-flash-preview" });
     const parsed = parseAIJsonResponse<{ questions: { stem: string; choices: { letter: string; text: string; is_correct: boolean; explanation: string }[] }[] }>(raw);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -106,8 +107,9 @@ ${text}`;
     // Tag as source='ai'. Clear previous AI questions for this module first.
     await supabaseAdmin.from("questions").delete().eq("module_id", data.moduleId).eq("source", "ai");
     const inserted = [];
-    for (let i = 0; i < (parsed.questions ?? []).length; i++) {
-      const q = parsed.questions[i];
+    const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
       if (!q?.stem || !(q.choices ?? []).length) continue;
       const { data: qRow, error: qErr } = await supabaseAdmin
         .from("questions")
