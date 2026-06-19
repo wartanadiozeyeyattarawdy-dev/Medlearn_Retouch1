@@ -40,6 +40,7 @@ function ModulePage() {
   const [activeLesson, setActiveLesson] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [aiTimer, setAiTimer] = useState(0);
+  const [aiMsg, setAiMsg] = useState<string | null>(null);
   const [tab, setTab] = useState("path");
 
   const reloadProgress = useCallback(() => {
@@ -210,9 +211,13 @@ function ModulePage() {
               <p className="text-sm text-muted-foreground">QCM générés par l'IA à partir du cours.</p>
               <DuoButton variant="ghost" size="sm" disabled={generating}
                 onClick={async () => {
-                  setGenerating(true);
-                  try { await genFn({ data: { moduleId, count: 8 } });
+                  setGenerating(true); setAiMsg(null);
+                  try {
+                    const generated = await genFn({ data: { moduleId, count: 8 } });
                     const r = await getQFn({ data: { moduleId, source: "ai" } }); setAiQ(r);
+                    setAiMsg(`${generated.count} QCM IA prêts.`);
+                  } catch (error) {
+                    setAiMsg((error as Error).message);
                   } finally { setGenerating(false); }
                 }}>
                 <Sparkles className="h-4 w-4" /> {generating ? `Génération ${aiTimer}s` : "Régénérer 8 QCM"}
@@ -224,6 +229,7 @@ function ModulePage() {
                 <div className="mt-3 h-3 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${Math.min(96, 12 + aiTimer * 3)}%` }} /></div>
               </div>
             )}
+            {aiMsg && <p className="text-sm font-bold text-muted-foreground">{aiMsg}</p>}
             <QcmRunner questions={aiQ} abbreviations={abbreviations} onActiveQuestion={setActiveQ} onStatsChange={refreshStats} />
           </TabsContent>
         </Tabs>
