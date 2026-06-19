@@ -73,14 +73,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "Medlearn" },
+      { name: "description", content: "Apprenez et révisez vos cours vos stages…préparez vos examens avec des modalités réels des professeurs de la FMPO de le 1ère à la 7ème année." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "Medlearn" },
+      { property: "og:description", content: "Apprenez et révisez vos cours vos stages…préparez vos examens avec des modalités réels des professeurs de la FMPO de le 1ère à la 7ème année." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Medlearn" },
+      { name: "twitter:description", content: "Apprenez et révisez vos cours vos stages…préparez vos examens avec des modalités réels des professeurs de la FMPO de le 1ère à la 7ème année." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/vDRd4wFA1PYbqKAc8U7RrDcGwjB3/social-images/social-1781884479115-IMG_0316.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/vDRd4wFA1PYbqKAc8U7RrDcGwjB3/social-images/social-1781884479115-IMG_0316.webp" },
     ],
     links: [
       {
