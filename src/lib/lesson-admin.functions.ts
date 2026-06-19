@@ -353,6 +353,10 @@ export const adminUpdateLesson = createServerFn({ method: "POST" })
         summary: z.string().max(20000).optional(),
         traps: z.string().max(10000).optional(),
         mini_case: z.string().max(10000).optional(),
+        image_url: z.string().max(2000).optional().nullable(),
+        video_url: z.string().max(2000).optional().nullable(),
+        audio_url: z.string().max(2000).optional().nullable(),
+        resource_url: z.string().max(2000).optional().nullable(),
         ord: z.number().int().min(0).max(999).optional(),
       })
       .parse(input),
@@ -361,7 +365,13 @@ export const adminUpdateLesson = createServerFn({ method: "POST" })
     await assertAdmin(context.supabase, context.userId);
     const supabaseAdmin = await getAdminClient();
     const { id, ...rest } = data;
-    await supabaseAdmin.from("lessons").update(rest).eq("id", id);
+    await supabaseAdmin.from("lessons").update({
+      ...rest,
+      image_url: normalizeOptionalText(rest.image_url),
+      video_url: normalizeOptionalText(rest.video_url),
+      audio_url: normalizeOptionalText(rest.audio_url),
+      resource_url: normalizeOptionalText(rest.resource_url),
+    }).eq("id", id);
     return { ok: true };
   });
 
@@ -436,6 +446,7 @@ export const adminUpdateQuestion = createServerFn({ method: "POST" })
         teacher_note: z.string().max(5000).optional().nullable(),
         image_url: z.string().max(2000).optional().nullable(),
         video_url: z.string().max(2000).optional().nullable(),
+        audio_url: z.string().max(2000).optional().nullable(),
         choices: z
           .array(
             z.object({
@@ -466,6 +477,7 @@ export const adminUpdateQuestion = createServerFn({ method: "POST" })
       teacher_note: normalizeOptionalText(rest.teacher_note),
       image_url: normalizeOptionalText(rest.image_url),
       video_url: normalizeOptionalText(rest.video_url),
+      audio_url: normalizeOptionalText(rest.audio_url),
     }).eq("id", id);
     if (error) throw new Error(error.message);
 
