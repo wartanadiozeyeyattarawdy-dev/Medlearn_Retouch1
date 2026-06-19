@@ -8,6 +8,40 @@ async function assertAdmin(supabase: import("@supabase/supabase-js").SupabaseCli
   if (!(data ?? []).some((r) => r.role === "admin")) throw new Error("Admin requis");
 }
 
+function normalizeOptionalText(value?: string | null) {
+  const cleaned = value?.trim();
+  return cleaned ? cleaned : null;
+}
+
+function fallbackSummary(text: string) {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  return cleaned.length > 900 ? `${cleaned.slice(0, 900)}…` : cleaned || "Résumé à compléter.";
+}
+
+function ensureIngestShape(parsed: any, sourceText: string, moduleName?: string) {
+  const lessons = Array.isArray(parsed?.lessons) && parsed.lessons.length > 0
+    ? parsed.lessons
+    : [{
+        title: moduleName || parsed?.module?.name || "Leçon principale",
+        full_text: sourceText,
+        summary: fallbackSummary(sourceText),
+        traps: "À compléter par l'admin.",
+        mini_case: "",
+        questions: [],
+      }];
+
+  return {
+    module: {
+      name: moduleName || parsed?.module?.name || "Nouveau module",
+      emoji: parsed?.module?.emoji || "📘",
+      description: parsed?.module?.description || fallbackSummary(sourceText).slice(0, 240),
+      learning_info: parsed?.module?.learning_info || "Lis les leçons, révise les résumés puis lance le Combat prof ou le Combat IA.",
+    },
+    abbreviations: Array.isArray(parsed?.abbreviations) ? parsed.abbreviations : [],
+    lessons,
+  };
+}
+
 export const promoteSelfToAdmin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -97,71 +131,86 @@ export const adminIngestText = createServerFn({ method: "POST" })
 
     // Limiter la taille pour éviter les échecs de tokens en sortie
     const truncatedText = data.text.slice(0, 70000);
-    const system = `Tu es un assistant médical. Structure ce cours brut en JSON.
+    const system = `Tu es un enseignant de médecine très rigoureux. Structure ce cours brut en JSON valide, sans markdown hors JSON.
 SCHEMA:
 {
   "module": {"name":"...", "emoji":"📘", "description":"...", "learning_info":"..."},
   "abbreviations": [{"short":"...","full_form":"..."}],
   "lessons": [{
-    "title":"...", "full_text":"...", "summary":"markdown", "traps":"markdown", "mini_case":"...",
-    "questions":[{"stem":"...", "teacher_note":"...", "image_url":"", "video_url":"", "choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]}]
+    "title":"titre court, jamais un copier-coller du cours", "full_text":"cours nettoyé et structuré", "summary":"vrai résumé synthétique en puces, pas un copier-coller", "traps":"pièges classiques", "mini_case":"cas clinique court",
+    "image_url":"", "video_url":"", "audio_url":"", "resource_url":"",
+    "questions":[{"stem":"question clinique ou conceptuelle précise", "teacher_note":"note explicative", "image_url":"", "video_url":"", "audio_url":"", "choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"pourquoi vraie/fausse"}]}]
   }]
 }
-Important: Sois synthétique dans "full_text" et "summary" pour ne pas saturer la réponse.`;
+Règles obligatoires:
+- Découpe en plusieurs leçons si le texte contient plusieurs parties.
+- Les titres font moins de 90 caractères.
+- "summary" doit reformuler et condenser: ne recopie pas les paragraphes.
+- Chaque leçon doit contenir 3 à 6 QCM si le contenu le permet.
+- Chaque QCM a 4 propositions a,b,c,d, 1 à 3 réponses vraies, et une explanation pour chaque proposition.
+- Si aucun lien média n'est présent dans le texte, laisse les champs média vides.`;
 
     const prompt = `${data.moduleName ? `Nom: ${data.moduleName}\n` : ""}TEXTE:\n${truncatedText}`;
-    const raw = await callAI({ system, prompt, jsonMode: true, model: "google/gemini-3-flash-preview" });
-    const parsed = parseAIJsonResponse<any>(raw);
+    let parsed: any = {};
+    try {
+      const raw = await callAI({ system, prompt, jsonMode: true, model: "google/gemini-2.5-pro", maxTokens: 16000 });
+      parsed = parseAIJsonResponse<any>(raw);
+    } catch (error) {
+      console.error("AI ingestion failed, saving fallback lesson", error);
+    }
+    const shaped = ensureIngestShape(parsed, truncatedText, data.moduleName);
 
-    const moduleName = data.moduleName || parsed.module?.name || "Nouveau module";
     const { data: modRow, error: mErr } = await supabaseAdmin
       .from("modules")
       .insert({
-        name: moduleName,
-        emoji: parsed.module?.emoji || "📘",
-        description: parsed.module?.description || "",
-        learning_info: parsed.module?.learning_info || "",
+        name: shaped.module.name,
+        emoji: shaped.module.emoji,
+        description: shaped.module.description,
+        learning_info: shaped.module.learning_info,
         year_id: data.yearId ?? null,
       })
       .select()
       .single();
     if (mErr || !modRow) throw new Error(mErr?.message || "insert module failed");
 
-    for (const a of parsed.abbreviations ?? []) {
+    for (const a of shaped.abbreviations) {
       if (!a.short || !a.full_form) continue;
       await supabaseAdmin.from("abbreviations").upsert({ module_id: modRow.id, short: a.short, full_form: a.full_form }, { onConflict: "module_id,short" });
     }
 
-    const parsedLessons = Array.isArray(parsed.lessons) && parsed.lessons.length > 0
-      ? parsed.lessons
-      : [{ title: moduleName, full_text: truncatedText, summary: parsed.module?.description || "Résumé à compléter.", traps: "", mini_case: "", questions: [] }];
-
     let lessonOrd = 0;
-    for (const l of parsedLessons) {
+    for (const l of shaped.lessons) {
       const { data: lRow } = await supabaseAdmin.from("lessons").insert({
           module_id: modRow.id,
-          title: l.title || `Leçon ${lessonOrd + 1}`,
+          title: (l.title || `Leçon ${lessonOrd + 1}`).slice(0, 180),
           ord: lessonOrd++,
-          full_text: l.full_text || "",
-          summary: l.summary || "",
+          full_text: l.full_text || truncatedText,
+          summary: l.summary || fallbackSummary(l.full_text || truncatedText),
           traps: l.traps || "",
           mini_case: l.mini_case || "",
+          image_url: normalizeOptionalText(l.image_url),
+          video_url: normalizeOptionalText(l.video_url),
+          audio_url: normalizeOptionalText(l.audio_url),
+          resource_url: normalizeOptionalText(l.resource_url),
         }).select().single();
       if (!lRow) continue;
       let qOrd = 0;
       for (const q of l.questions ?? []) {
+        const choices = Array.isArray(q.choices) ? q.choices.filter((c: any) => c?.text) : [];
+        if (!q.stem || choices.length < 2 || !choices.some((c: any) => !!c.is_correct)) continue;
         const { data: qRow } = await supabaseAdmin.from("questions").insert({
             module_id: modRow.id,
             lesson_id: lRow.id,
             source: "admin",
             stem: q.stem,
             ord: qOrd++,
-            teacher_note: q.teacher_note || null,
-            image_url: q.image_url || null,
-            video_url: q.video_url || null,
+            teacher_note: normalizeOptionalText(q.teacher_note),
+            image_url: normalizeOptionalText(q.image_url),
+            video_url: normalizeOptionalText(q.video_url),
+            audio_url: normalizeOptionalText(q.audio_url),
           }).select().single();
         if (!qRow) continue;
-        for (const c of q.choices ?? []) {
+        for (const c of choices) {
           await supabaseAdmin.from("choices").insert({
             question_id: qRow.id,
             letter: c.letter,
@@ -172,5 +221,5 @@ Important: Sois synthétique dans "full_text" et "summary" pour ne pas saturer l
         }
       }
     }
-    return { moduleId: modRow.id, lessons: parsedLessons.length };
+    return { moduleId: modRow.id, lessons: shaped.lessons.length };
   });
