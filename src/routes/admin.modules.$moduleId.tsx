@@ -231,6 +231,10 @@ function ModuleEditor() {
                           {l.summary && <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-bold">résumé ✓</span>}
                           {l.traps && <span className="px-2 py-0.5 rounded bg-warning/15 text-warning-foreground font-bold">pièges ✓</span>}
                           {l.mini_case && <span className="px-2 py-0.5 rounded bg-sky/15 text-sky font-bold">cas ✓</span>}
+                          {l.image_url && <span className="px-2 py-0.5 rounded bg-sky/15 text-sky font-bold inline-flex items-center gap-1"><Image className="h-3 w-3" /> image</span>}
+                          {l.video_url && <span className="px-2 py-0.5 rounded bg-xp/15 text-xp font-bold inline-flex items-center gap-1"><Video className="h-3 w-3" /> vidéo</span>}
+                          {l.audio_url && <span className="px-2 py-0.5 rounded bg-heart/10 text-heart font-bold inline-flex items-center gap-1"><Volume2 className="h-3 w-3" /> audio</span>}
+                          {l.resource_url && <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground font-bold inline-flex items-center gap-1"><LinkIcon className="h-3 w-3" /> ressource</span>}
                           <span className="px-2 py-0.5 rounded bg-heart/10 text-heart font-bold">{lessonQs.length} QCM</span>
                         </div>
                       </div>
