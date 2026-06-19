@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Plus, Sparkles, Trash2, Wand2, ChevronLeft, Save, RefreshCw, Image, Video, StickyNote, Eye } from "lucide-react";
+import { Loader2, Plus, Sparkles, Trash2, Wand2, ChevronLeft, Save, RefreshCw, Image, Video, StickyNote, Eye, Volume2, LinkIcon } from "lucide-react";
 
 export const Route = createFileRoute("/admin/modules/$moduleId")({ component: ModuleEditor });
 
@@ -115,6 +115,7 @@ function ModuleEditor() {
       teacher_note: q.teacher_note || "",
       image_url: q.image_url || "",
       video_url: q.video_url || "",
+        audio_url: q.audio_url || "",
       choices: choices.length ? choices : ["a", "b", "c", "d"].map((letter) => ({ letter, text: "", is_correct: false, explanation: "" })),
     });
   };
