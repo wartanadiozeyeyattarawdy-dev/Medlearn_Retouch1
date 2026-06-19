@@ -26,6 +26,11 @@ function normalizeOptionalText(value?: string | null) {
   return cleaned ? cleaned : null;
 }
 
+function fallbackSummary(text: string) {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  return cleaned.length > 900 ? `${cleaned.slice(0, 900)}…` : cleaned || "Résumé à compléter.";
+}
+
 async function replaceQuestionChoices(questionId: string, choices: AdminChoiceInput[]) {
   const supabaseAdmin = await getAdminClient();
   await supabaseAdmin.from("choices").delete().eq("question_id", questionId);
@@ -92,7 +97,7 @@ export const adminGetModule = createServerFn({ method: "POST" })
       supabaseAdmin.from("abbreviations").select("*").eq("module_id", data.id).order("short"),
       supabaseAdmin
         .from("questions")
-        .select("id,stem,source,lesson_id,ord,teacher_note,image_url,video_url,choices(id,letter,text,is_correct,explanation)")
+        .select("id,stem,source,lesson_id,ord,teacher_note,image_url,video_url,audio_url,choices(id,letter,text,is_correct,explanation)")
         .eq("module_id", data.id)
         .order("ord"),
       supabaseAdmin.from("years").select("*").order("ord"),
