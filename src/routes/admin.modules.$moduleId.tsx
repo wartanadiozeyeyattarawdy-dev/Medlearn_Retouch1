@@ -235,7 +235,7 @@ function ModuleEditor() {
                         </div>
                       </div>
                       <div className="flex flex-col gap-1">
-                        <Button size="sm" variant="outline" onClick={() => { setEditing(l.id); setDraft({ title: l.title, full_text: l.full_text, summary: l.summary, traps: l.traps, mini_case: l.mini_case, ord: l.ord }); }}>Éditer</Button>
+                        <Button size="sm" variant="outline" onClick={() => { setEditing(l.id); setDraft({ title: l.title, full_text: l.full_text, summary: l.summary, traps: l.traps, mini_case: l.mini_case, image_url: l.image_url || "", video_url: l.video_url || "", audio_url: l.audio_url || "", resource_url: l.resource_url || "", ord: l.ord }); }}>Éditer</Button>
                         <Button size="sm" variant="ghost" onClick={() => { if (confirm("Supprimer cette leçon ?")) run("d"+l.id, () => deleteLessonFn({ data: { id: l.id } }), "Leçon supprimée"); }}>
                           <Trash2 className="h-3 w-3" />
                         </Button>
@@ -251,6 +251,12 @@ function ModuleEditor() {
                       <Textarea rows={4} value={draft.summary || ""} onChange={(e) => setDraft({...draft, summary: e.target.value})} placeholder="Résumé" />
                       <Textarea rows={3} value={draft.traps || ""} onChange={(e) => setDraft({...draft, traps: e.target.value})} placeholder="Pièges du prof" />
                       <Textarea rows={3} value={draft.mini_case || ""} onChange={(e) => setDraft({...draft, mini_case: e.target.value})} placeholder="Mini-cas clinique" />
+                      <div className="grid sm:grid-cols-4 gap-2">
+                        <Input value={draft.image_url || ""} onChange={(e) => setDraft({...draft, image_url: e.target.value})} placeholder="Lien image" />
+                        <Input value={draft.video_url || ""} onChange={(e) => setDraft({...draft, video_url: e.target.value})} placeholder="Lien vidéo" />
+                        <Input value={draft.audio_url || ""} onChange={(e) => setDraft({...draft, audio_url: e.target.value})} placeholder="Lien audio" />
+                        <Input value={draft.resource_url || ""} onChange={(e) => setDraft({...draft, resource_url: e.target.value})} placeholder="Lien ressource" />
+                      </div>
                       <div className="flex gap-2">
                         <DuoButton size="sm" variant="primary" onClick={() => run("u"+l.id, () => updateLessonFn({ data: { id: l.id, ...draft } }).then(() => setEditing(null)), "Leçon mise à jour")}>Enregistrer</DuoButton>
                         <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Annuler</Button>
