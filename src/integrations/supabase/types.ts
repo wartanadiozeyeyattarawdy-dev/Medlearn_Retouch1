@@ -172,37 +172,49 @@ export type Database = {
       }
       lessons: {
         Row: {
+          audio_url: string | null
           created_at: string
           full_text: string
           id: string
+          image_url: string | null
           mini_case: string | null
           module_id: string
           ord: number
+          resource_url: string | null
           summary: string
           title: string
           traps: string | null
+          video_url: string | null
         }
         Insert: {
+          audio_url?: string | null
           created_at?: string
           full_text?: string
           id?: string
+          image_url?: string | null
           mini_case?: string | null
           module_id: string
           ord?: number
+          resource_url?: string | null
           summary?: string
           title: string
           traps?: string | null
+          video_url?: string | null
         }
         Update: {
+          audio_url?: string | null
           created_at?: string
           full_text?: string
           id?: string
+          image_url?: string | null
           mini_case?: string | null
           module_id?: string
           ord?: number
+          resource_url?: string | null
           summary?: string
           title?: string
           traps?: string | null
+          video_url?: string | null
         }
         Relationships: [
           {
@@ -287,6 +299,7 @@ export type Database = {
       }
       questions: {
         Row: {
+          audio_url: string | null
           created_at: string
           id: string
           image_url: string | null
@@ -299,6 +312,7 @@ export type Database = {
           video_url: string | null
         }
         Insert: {
+          audio_url?: string | null
           created_at?: string
           id?: string
           image_url?: string | null
@@ -311,6 +325,7 @@ export type Database = {
           video_url?: string | null
         }
         Update: {
+          audio_url?: string | null
           created_at?: string
           id?: string
           image_url?: string | null
