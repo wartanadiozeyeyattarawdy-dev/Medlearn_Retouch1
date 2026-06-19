@@ -12,6 +12,7 @@ import {
   adminCreateQuestion,
   adminUpdateQuestion,
   adminDeleteQuestion,
+  adminRepairModuleContent,
   adminAutoExtractAbbreviations,
   adminUpsertAbbreviation,
   adminDeleteAbbreviation,
@@ -40,6 +41,7 @@ function ModuleEditor() {
   const createQuestionFn = useServerFn(adminCreateQuestion);
   const updateQuestionFn = useServerFn(adminUpdateQuestion);
   const deleteQuestionFn = useServerFn(adminDeleteQuestion);
+  const repairFn = useServerFn(adminRepairModuleContent);
   const extractAbbrFn = useServerFn(adminAutoExtractAbbreviations);
   const upsertAbbrFn = useServerFn(adminUpsertAbbreviation);
   const deleteAbbrFn = useServerFn(adminDeleteAbbreviation);
@@ -144,6 +146,12 @@ function ModuleEditor() {
             <Link to="/modules/$moduleId" params={{ moduleId }}>
               <DuoButton variant="ghost" size="sm"><Eye className="h-4 w-4" /> Aperçu étudiant</DuoButton>
             </Link>
+            <DuoButton variant="primary" size="sm" disabled={busy==="repair"} onClick={() => run("repair", async () => {
+              const r = await repairFn({ data: { moduleId, qcmPerLesson: 4 } });
+              setMsg(`${r.summariesUpdated} résumé(s) repris · ${r.qcmAdded} QCM ajoutés`);
+            }, "Module complété") }>
+              {busy==="repair" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Compléter IA
+            </DuoButton>
           </div>
           {busy && (
             <div className="mt-4 rounded-xl border-2 border-primary/30 bg-card p-4 animate-slide-up">
