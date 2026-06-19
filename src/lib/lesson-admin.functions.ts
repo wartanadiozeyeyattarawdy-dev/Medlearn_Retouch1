@@ -285,11 +285,12 @@ export const adminGenerateLessonQcms = createServerFn({ method: "POST" })
     const prompt = `Génère ${data.count} QCM en français pour la leçon ci-dessous.
 Chaque QCM: stem clair, 4 propositions a,b,c,d, 1 à 3 bonnes réponses, chaque proposition avec une explanation courte (pourquoi vraie/fausse).
 Ajoute si pertinent un teacher_note court pour l'étudiant.
-JSON strict: {"questions":[{"stem":"...","teacher_note":"...","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]}]}
+Interdiction: ne copie pas une phrase entière du cours comme énoncé; transforme en question clinique, mécanistique ou de diagnostic.
+JSON strict: {"questions":[{"stem":"...","teacher_note":"...","image_url":"","video_url":"","audio_url":"","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]}]}
 
 LEÇON: ${lesson.title}
 ${(lesson.full_text || lesson.summary || "").slice(0, 14000)}`;
-    const raw = await callAI({ prompt, jsonMode: true, model: "google/gemini-3-flash-preview" });
+    const raw = await callAI({ prompt, jsonMode: true, model: "google/gemini-2.5-pro", maxTokens: 12000 });
     const parsed = parseAIJsonResponse<any>(raw);
 
     if (data.replace) {
@@ -316,7 +317,8 @@ ${(lesson.full_text || lesson.summary || "").slice(0, 14000)}`;
 
     const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
     for (const question of questions) {
-      if (!question?.stem) continue;
+      const choices = Array.isArray(question.choices) ? question.choices.filter((choice: any) => choice?.text) : [];
+      if (!question?.stem || choices.length < 2 || !choices.some((choice: any) => !!choice.is_correct)) continue;
       const { data: questionRow } = await supabaseAdmin
         .from("questions")
         .insert({
@@ -328,11 +330,12 @@ ${(lesson.full_text || lesson.summary || "").slice(0, 14000)}`;
           teacher_note: normalizeOptionalText(question.teacher_note),
           image_url: normalizeOptionalText(question.image_url),
           video_url: normalizeOptionalText(question.video_url),
+          audio_url: normalizeOptionalText(question.audio_url),
         })
         .select()
         .single();
       if (!questionRow) continue;
-      await replaceQuestionChoices(questionRow.id, question.choices ?? []);
+      await replaceQuestionChoices(questionRow.id, choices);
       count++;
     }
 
