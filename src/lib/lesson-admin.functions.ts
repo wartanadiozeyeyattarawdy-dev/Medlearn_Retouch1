@@ -128,26 +128,37 @@ export const adminAddLessonFromText = createServerFn({ method: "POST" })
     await assertAdmin(context.supabase, context.userId);
     const supabaseAdmin = await getAdminClient();
 
-    const system = `Tu es un assistant pédagogique médical. Tu reçois UNE leçon brute (texte). Tu retournes UNIQUEMENT du JSON valide.
+    const system = `Tu es un enseignant de médecine rigoureux. Tu reçois UNE leçon brute. Tu retournes UNIQUEMENT du JSON valide.
 SCHEMA:
 {
   "title": "titre court de la leçon",
-  "full_text": "texte structuré (max 2000 mots pour éviter troncature JSON)",
-  "summary": "résumé synthétique",
+  "full_text": "texte nettoyé et structuré",
+  "summary": "vrai résumé synthétique en puces, jamais un copier-coller",
   "traps": "pièges fréquents du professeur, erreurs classiques à éviter",
   "mini_case": "mini-cas clinique illustratif avec question",
+  "image_url": "", "video_url": "", "audio_url": "", "resource_url": "",
   "abbreviations": [{"short":"AVC","full_form":"Accident vasculaire cérébral"}],
-  "questions": [{"stem":"...","teacher_note":"...","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"pourquoi vraie/fausse"}]}]
+  "questions": [{"stem":"question clinique ou conceptuelle précise","teacher_note":"note explicative","image_url":"","video_url":"","audio_url":"","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"pourquoi vraie/fausse"}]}]
 }
-Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes réponses, chaque proposition avec explanation).`;
+Règles obligatoires:
+- Le titre doit nommer le sujet, pas reprendre la première phrase.
+- Le résumé reformule et condense les idées clés.
+- Génère ${data.generateQcm ? data.qcmCount : 0} QCM a,b,c,d, 1 à 3 bonnes réponses, chaque proposition avec explanation.
+- Si aucun lien média n'est présent, laisse les champs média vides.`;
 
-    const raw = await callAI({
-      system,
-      prompt: `LEÇON BRUTE:\n${data.rawText.slice(0, 70000)}`,
-      jsonMode: true,
-      model: "google/gemini-3-flash-preview",
-    });
-    const parsed = parseAIJsonResponse<any>(raw);
+    let parsed: any = {};
+    try {
+      const raw = await callAI({
+        system,
+        prompt: `LEÇON BRUTE:\n${data.rawText.slice(0, 70000)}`,
+        jsonMode: true,
+        model: "google/gemini-2.5-pro",
+        maxTokens: 14000,
+      });
+      parsed = parseAIJsonResponse<any>(raw);
+    } catch (error) {
+      console.error("AI lesson generation failed, saving raw lesson", error);
+    }
 
     const { data: maxOrdRow } = await supabaseAdmin
       .from("lessons")
@@ -165,9 +176,13 @@ Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes ré
         title: parsed.title || `Leçon ${nextOrd + 1}`,
         ord: nextOrd,
         full_text: parsed.full_text || data.rawText.slice(0, 70000),
-        summary: parsed.summary || "",
+        summary: parsed.summary || fallbackSummary(data.rawText),
         traps: parsed.traps || "",
         mini_case: parsed.mini_case || "",
+        image_url: normalizeOptionalText(parsed.image_url),
+        video_url: normalizeOptionalText(parsed.video_url),
+        audio_url: normalizeOptionalText(parsed.audio_url),
+        resource_url: normalizeOptionalText(parsed.resource_url),
       })
       .select()
       .single();
@@ -183,7 +198,8 @@ Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes ré
     const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
     let qOrd = 0;
     for (const question of questions) {
-      if (!question?.stem) continue;
+      const choices = Array.isArray(question.choices) ? question.choices.filter((choice: any) => choice?.text) : [];
+      if (!question?.stem || choices.length < 2 || !choices.some((choice: any) => !!choice.is_correct)) continue;
       const { data: questionRow } = await supabaseAdmin
         .from("questions")
         .insert({
@@ -195,11 +211,12 @@ Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes ré
           teacher_note: normalizeOptionalText(question.teacher_note),
           image_url: normalizeOptionalText(question.image_url),
           video_url: normalizeOptionalText(question.video_url),
+          audio_url: normalizeOptionalText(question.audio_url),
         })
         .select()
         .single();
       if (!questionRow) continue;
-      await replaceQuestionChoices(questionRow.id, question.choices ?? []);
+      await replaceQuestionChoices(questionRow.id, choices);
     }
 
     return { lessonId: lessonRow.id, qcm: questions.length };
