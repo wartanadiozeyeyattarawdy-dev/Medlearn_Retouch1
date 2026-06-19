@@ -92,7 +92,11 @@ function ModuleEditor() {
 
   const run = async (key: string, fn: () => Promise<unknown>, ok = "Fait.") => {
     setBusy(key); setMsg(null);
-    try { await fn(); setMsg(ok); await refresh(); }
+    try {
+      const result = await fn();
+      setMsg(typeof result === "string" ? result : ok);
+      await refresh();
+    }
     catch (e) { setMsg("Erreur: " + (e as Error).message); }
     finally { setBusy(null); }
   };
@@ -148,7 +152,7 @@ function ModuleEditor() {
             </Link>
             <DuoButton variant="primary" size="sm" disabled={busy==="repair"} onClick={() => run("repair", async () => {
               const r = await repairFn({ data: { moduleId, qcmPerLesson: 4 } });
-              setMsg(`${r.summariesUpdated} résumé(s) repris · ${r.qcmAdded} QCM ajoutés`);
+              return `${r.summariesUpdated} résumé(s) repris · ${r.qcmAdded} QCM ajoutés`;
             }, "Module complété") }>
               {busy==="repair" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Compléter IA
             </DuoButton>
