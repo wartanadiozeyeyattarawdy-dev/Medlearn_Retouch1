@@ -292,10 +292,11 @@ function ModuleEditor() {
                                   <Textarea rows={3} value={questionDraft.stem || ""} onChange={(e) => setQuestionDraft({...questionDraft, stem: e.target.value})} placeholder="Énoncé" />
                                   <Input type="number" value={questionDraft.ord ?? 0} onChange={(e) => setQuestionDraft({...questionDraft, ord: Number(e.target.value)})} placeholder="Ordre" />
                                 </div>
-                                <div className="grid sm:grid-cols-3 gap-2">
+                                <div className="grid sm:grid-cols-4 gap-2">
                                   <Input value={questionDraft.teacher_note || ""} onChange={(e) => setQuestionDraft({...questionDraft, teacher_note: e.target.value})} placeholder="Note explicative" />
                                   <Input value={questionDraft.image_url || ""} onChange={(e) => setQuestionDraft({...questionDraft, image_url: e.target.value})} placeholder="Lien image" />
                                   <Input value={questionDraft.video_url || ""} onChange={(e) => setQuestionDraft({...questionDraft, video_url: e.target.value})} placeholder="Lien vidéo" />
+                                  <Input value={questionDraft.audio_url || ""} onChange={(e) => setQuestionDraft({...questionDraft, audio_url: e.target.value})} placeholder="Lien audio" />
                                 </div>
                                 <div className="space-y-2">
                                   {(questionDraft.choices ?? []).map((c: any, i: number) => (
@@ -328,6 +329,7 @@ function ModuleEditor() {
                                   {q.teacher_note && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-0.5 font-bold text-primary"><StickyNote className="h-3 w-3" /> note</span>}
                                   {q.image_url && <span className="inline-flex items-center gap-1 rounded bg-sky/15 px-2 py-0.5 font-bold text-sky"><Image className="h-3 w-3" /> image</span>}
                                   {q.video_url && <span className="inline-flex items-center gap-1 rounded bg-xp/15 px-2 py-0.5 font-bold text-xp"><Video className="h-3 w-3" /> vidéo</span>}
+                                  {q.audio_url && <span className="inline-flex items-center gap-1 rounded bg-heart/10 px-2 py-0.5 font-bold text-heart"><Volume2 className="h-3 w-3" /> audio</span>}
                                 </div>
                                 <ul className="mt-1 space-y-0.5">
                                   {(q.choices ?? []).slice().sort((a:any,b:any)=>a.letter.localeCompare(b.letter)).map((c:any) => (
