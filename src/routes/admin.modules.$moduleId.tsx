@@ -12,6 +12,7 @@ import {
   adminCreateQuestion,
   adminUpdateQuestion,
   adminDeleteQuestion,
+  adminRepairModuleContent,
   adminAutoExtractAbbreviations,
   adminUpsertAbbreviation,
   adminDeleteAbbreviation,
@@ -24,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Plus, Sparkles, Trash2, Wand2, ChevronLeft, Save, RefreshCw, Image, Video, StickyNote, Eye } from "lucide-react";
+import { Loader2, Plus, Sparkles, Trash2, Wand2, ChevronLeft, Save, RefreshCw, Image, Video, StickyNote, Eye, Volume2, LinkIcon } from "lucide-react";
 
 export const Route = createFileRoute("/admin/modules/$moduleId")({ component: ModuleEditor });
 
@@ -40,6 +41,7 @@ function ModuleEditor() {
   const createQuestionFn = useServerFn(adminCreateQuestion);
   const updateQuestionFn = useServerFn(adminUpdateQuestion);
   const deleteQuestionFn = useServerFn(adminDeleteQuestion);
+  const repairFn = useServerFn(adminRepairModuleContent);
   const extractAbbrFn = useServerFn(adminAutoExtractAbbreviations);
   const upsertAbbrFn = useServerFn(adminUpsertAbbreviation);
   const deleteAbbrFn = useServerFn(adminDeleteAbbreviation);
@@ -90,7 +92,11 @@ function ModuleEditor() {
 
   const run = async (key: string, fn: () => Promise<unknown>, ok = "Fait.") => {
     setBusy(key); setMsg(null);
-    try { await fn(); setMsg(ok); await refresh(); }
+    try {
+      const result = await fn();
+      setMsg(typeof result === "string" ? result : ok);
+      await refresh();
+    }
     catch (e) { setMsg("Erreur: " + (e as Error).message); }
     finally { setBusy(null); }
   };
@@ -115,6 +121,7 @@ function ModuleEditor() {
       teacher_note: q.teacher_note || "",
       image_url: q.image_url || "",
       video_url: q.video_url || "",
+        audio_url: q.audio_url || "",
       choices: choices.length ? choices : ["a", "b", "c", "d"].map((letter) => ({ letter, text: "", is_correct: false, explanation: "" })),
     });
   };
@@ -143,6 +150,12 @@ function ModuleEditor() {
             <Link to="/modules/$moduleId" params={{ moduleId }}>
               <DuoButton variant="ghost" size="sm"><Eye className="h-4 w-4" /> Aperçu étudiant</DuoButton>
             </Link>
+            <DuoButton variant="primary" size="sm" disabled={busy==="repair"} onClick={() => run("repair", async () => {
+              const r = await repairFn({ data: { moduleId, qcmPerLesson: 4 } });
+              return `${r.summariesUpdated} résumé(s) repris · ${r.qcmAdded} QCM ajoutés`;
+            }, "Module complété") }>
+              {busy==="repair" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Compléter IA
+            </DuoButton>
           </div>
           {busy && (
             <div className="mt-4 rounded-xl border-2 border-primary/30 bg-card p-4 animate-slide-up">
@@ -230,11 +243,15 @@ function ModuleEditor() {
                           {l.summary && <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-bold">résumé ✓</span>}
                           {l.traps && <span className="px-2 py-0.5 rounded bg-warning/15 text-warning-foreground font-bold">pièges ✓</span>}
                           {l.mini_case && <span className="px-2 py-0.5 rounded bg-sky/15 text-sky font-bold">cas ✓</span>}
+                          {l.image_url && <span className="px-2 py-0.5 rounded bg-sky/15 text-sky font-bold inline-flex items-center gap-1"><Image className="h-3 w-3" /> image</span>}
+                          {l.video_url && <span className="px-2 py-0.5 rounded bg-xp/15 text-xp font-bold inline-flex items-center gap-1"><Video className="h-3 w-3" /> vidéo</span>}
+                          {l.audio_url && <span className="px-2 py-0.5 rounded bg-heart/10 text-heart font-bold inline-flex items-center gap-1"><Volume2 className="h-3 w-3" /> audio</span>}
+                          {l.resource_url && <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground font-bold inline-flex items-center gap-1"><LinkIcon className="h-3 w-3" /> ressource</span>}
                           <span className="px-2 py-0.5 rounded bg-heart/10 text-heart font-bold">{lessonQs.length} QCM</span>
                         </div>
                       </div>
                       <div className="flex flex-col gap-1">
-                        <Button size="sm" variant="outline" onClick={() => { setEditing(l.id); setDraft({ title: l.title, full_text: l.full_text, summary: l.summary, traps: l.traps, mini_case: l.mini_case, ord: l.ord }); }}>Éditer</Button>
+                        <Button size="sm" variant="outline" onClick={() => { setEditing(l.id); setDraft({ title: l.title, full_text: l.full_text, summary: l.summary, traps: l.traps, mini_case: l.mini_case, image_url: l.image_url || "", video_url: l.video_url || "", audio_url: l.audio_url || "", resource_url: l.resource_url || "", ord: l.ord }); }}>Éditer</Button>
                         <Button size="sm" variant="ghost" onClick={() => { if (confirm("Supprimer cette leçon ?")) run("d"+l.id, () => deleteLessonFn({ data: { id: l.id } }), "Leçon supprimée"); }}>
                           <Trash2 className="h-3 w-3" />
                         </Button>
@@ -250,6 +267,12 @@ function ModuleEditor() {
                       <Textarea rows={4} value={draft.summary || ""} onChange={(e) => setDraft({...draft, summary: e.target.value})} placeholder="Résumé" />
                       <Textarea rows={3} value={draft.traps || ""} onChange={(e) => setDraft({...draft, traps: e.target.value})} placeholder="Pièges du prof" />
                       <Textarea rows={3} value={draft.mini_case || ""} onChange={(e) => setDraft({...draft, mini_case: e.target.value})} placeholder="Mini-cas clinique" />
+                      <div className="grid sm:grid-cols-4 gap-2">
+                        <Input value={draft.image_url || ""} onChange={(e) => setDraft({...draft, image_url: e.target.value})} placeholder="Lien image" />
+                        <Input value={draft.video_url || ""} onChange={(e) => setDraft({...draft, video_url: e.target.value})} placeholder="Lien vidéo" />
+                        <Input value={draft.audio_url || ""} onChange={(e) => setDraft({...draft, audio_url: e.target.value})} placeholder="Lien audio" />
+                        <Input value={draft.resource_url || ""} onChange={(e) => setDraft({...draft, resource_url: e.target.value})} placeholder="Lien ressource" />
+                      </div>
                       <div className="flex gap-2">
                         <DuoButton size="sm" variant="primary" onClick={() => run("u"+l.id, () => updateLessonFn({ data: { id: l.id, ...draft } }).then(() => setEditing(null)), "Leçon mise à jour")}>Enregistrer</DuoButton>
                         <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Annuler</Button>
@@ -285,10 +308,11 @@ function ModuleEditor() {
                                   <Textarea rows={3} value={questionDraft.stem || ""} onChange={(e) => setQuestionDraft({...questionDraft, stem: e.target.value})} placeholder="Énoncé" />
                                   <Input type="number" value={questionDraft.ord ?? 0} onChange={(e) => setQuestionDraft({...questionDraft, ord: Number(e.target.value)})} placeholder="Ordre" />
                                 </div>
-                                <div className="grid sm:grid-cols-3 gap-2">
+                                <div className="grid sm:grid-cols-4 gap-2">
                                   <Input value={questionDraft.teacher_note || ""} onChange={(e) => setQuestionDraft({...questionDraft, teacher_note: e.target.value})} placeholder="Note explicative" />
                                   <Input value={questionDraft.image_url || ""} onChange={(e) => setQuestionDraft({...questionDraft, image_url: e.target.value})} placeholder="Lien image" />
                                   <Input value={questionDraft.video_url || ""} onChange={(e) => setQuestionDraft({...questionDraft, video_url: e.target.value})} placeholder="Lien vidéo" />
+                                  <Input value={questionDraft.audio_url || ""} onChange={(e) => setQuestionDraft({...questionDraft, audio_url: e.target.value})} placeholder="Lien audio" />
                                 </div>
                                 <div className="space-y-2">
                                   {(questionDraft.choices ?? []).map((c: any, i: number) => (
@@ -321,6 +345,7 @@ function ModuleEditor() {
                                   {q.teacher_note && <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-0.5 font-bold text-primary"><StickyNote className="h-3 w-3" /> note</span>}
                                   {q.image_url && <span className="inline-flex items-center gap-1 rounded bg-sky/15 px-2 py-0.5 font-bold text-sky"><Image className="h-3 w-3" /> image</span>}
                                   {q.video_url && <span className="inline-flex items-center gap-1 rounded bg-xp/15 px-2 py-0.5 font-bold text-xp"><Video className="h-3 w-3" /> vidéo</span>}
+                                  {q.audio_url && <span className="inline-flex items-center gap-1 rounded bg-heart/10 px-2 py-0.5 font-bold text-heart"><Volume2 className="h-3 w-3" /> audio</span>}
                                 </div>
                                 <ul className="mt-1 space-y-0.5">
                                   {(q.choices ?? []).slice().sort((a:any,b:any)=>a.letter.localeCompare(b.letter)).map((c:any) => (

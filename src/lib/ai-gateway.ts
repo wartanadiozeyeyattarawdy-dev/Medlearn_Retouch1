@@ -3,11 +3,12 @@ export async function callAI(opts: {
   prompt: string;
   model?: string;
   jsonMode?: boolean;
+  maxTokens?: number;
 }): Promise<string> {
   const key = process.env.LOVABLE_API_KEY;
   if (!key) throw new Error("LOVABLE_API_KEY missing");
   const preferred = opts.model === "google/gemini-1.5-flash" ? "google/gemini-3-flash-preview" : (opts.model ?? "google/gemini-3-flash-preview");
-  const fallbackModels = Array.from(new Set([preferred, "google/gemini-2.5-flash", "google/gemini-3.1-flash-lite"]));
+  const fallbackModels = Array.from(new Set([preferred, "google/gemini-2.5-pro", "google/gemini-3-flash-preview", "google/gemini-2.5-flash", "google/gemini-3.1-flash-lite"]));
   let lastError = "Erreur IA inconnue";
 
   for (const model of fallbackModels) {
@@ -26,6 +27,7 @@ async function callSingleAI(opts: {
   prompt: string;
   model: string;
   jsonMode?: boolean;
+  maxTokens?: number;
 }, key: string): Promise<string> {
   const body: Record<string, unknown> = {
     model: opts.model,
@@ -33,7 +35,7 @@ async function callSingleAI(opts: {
       ...(opts.system ? [{ role: "system", content: opts.system }] : []),
       { role: "user", content: opts.prompt },
     ],
-    max_tokens: opts.jsonMode ? 8192 : 4096,
+    max_tokens: opts.maxTokens ?? (opts.jsonMode ? 12000 : 5000),
   };
   if (opts.jsonMode) body.response_format = { type: "json_object" };
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {

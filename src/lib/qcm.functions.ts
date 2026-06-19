@@ -93,14 +93,15 @@ Pour chaque question :
 - 4 propositions a,b,c,d
 - entre 1 et 3 bonnes réponses
 - chaque proposition (vraie OU fausse) doit avoir une "explanation" courte expliquant pourquoi.
+- ne copie-colle pas le cours comme énoncé: pose une vraie question de raisonnement, diagnostic, mécanisme ou conduite.
 Réponds en JSON strict suivant ce schéma :
-{"questions":[{"stem":"...","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]}]}
+{"questions":[{"stem":"...","teacher_note":"...","image_url":"","video_url":"","audio_url":"","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]}]}
 
 COURS:
 ${text}`;
 
-    const raw = await callAI({ prompt, jsonMode: true, model: "google/gemini-3-flash-preview" });
-    const parsed = parseAIJsonResponse<{ questions: { stem: string; choices: { letter: string; text: string; is_correct: boolean; explanation: string }[] }[] }>(raw);
+    const raw = await callAI({ prompt, jsonMode: true, model: "google/gemini-2.5-pro", maxTokens: 12000 });
+    const parsed = parseAIJsonResponse<{ questions: { stem: string; teacher_note?: string; image_url?: string; video_url?: string; audio_url?: string; choices: { letter: string; text: string; is_correct: boolean; explanation: string }[] }[] }>(raw);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // Insert with admin client (bypass RLS so any student can generate IA questions)
@@ -110,14 +111,24 @@ ${text}`;
     const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      if (!q?.stem || !(q.choices ?? []).length) continue;
+      const choices = Array.isArray(q.choices) ? q.choices.filter((c) => c?.text) : [];
+      if (!q?.stem || choices.length < 2 || !choices.some((c) => !!c.is_correct)) continue;
       const { data: qRow, error: qErr } = await supabaseAdmin
         .from("questions")
-        .insert({ module_id: data.moduleId, source: "ai", stem: q.stem, ord: i })
+        .insert({
+          module_id: data.moduleId,
+          source: "ai",
+          stem: q.stem,
+          ord: i,
+          teacher_note: q.teacher_note?.trim() || null,
+          image_url: q.image_url?.trim() || null,
+          video_url: q.video_url?.trim() || null,
+          audio_url: q.audio_url?.trim() || null,
+        })
         .select()
         .single();
       if (qErr || !qRow) continue;
-      for (const c of q.choices) {
+      for (const c of choices) {
         await supabaseAdmin.from("choices").insert({
           question_id: qRow.id,
           letter: c.letter,

@@ -26,6 +26,11 @@ function normalizeOptionalText(value?: string | null) {
   return cleaned ? cleaned : null;
 }
 
+function fallbackSummary(text: string) {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  return cleaned.length > 900 ? `${cleaned.slice(0, 900)}…` : cleaned || "Résumé à compléter.";
+}
+
 async function replaceQuestionChoices(questionId: string, choices: AdminChoiceInput[]) {
   const supabaseAdmin = await getAdminClient();
   await supabaseAdmin.from("choices").delete().eq("question_id", questionId);
@@ -92,7 +97,7 @@ export const adminGetModule = createServerFn({ method: "POST" })
       supabaseAdmin.from("abbreviations").select("*").eq("module_id", data.id).order("short"),
       supabaseAdmin
         .from("questions")
-        .select("id,stem,source,lesson_id,ord,teacher_note,image_url,video_url,choices(id,letter,text,is_correct,explanation)")
+        .select("id,stem,source,lesson_id,ord,teacher_note,image_url,video_url,audio_url,choices(id,letter,text,is_correct,explanation)")
         .eq("module_id", data.id)
         .order("ord"),
       supabaseAdmin.from("years").select("*").order("ord"),
@@ -123,26 +128,37 @@ export const adminAddLessonFromText = createServerFn({ method: "POST" })
     await assertAdmin(context.supabase, context.userId);
     const supabaseAdmin = await getAdminClient();
 
-    const system = `Tu es un assistant pédagogique médical. Tu reçois UNE leçon brute (texte). Tu retournes UNIQUEMENT du JSON valide.
+    const system = `Tu es un enseignant de médecine rigoureux. Tu reçois UNE leçon brute. Tu retournes UNIQUEMENT du JSON valide.
 SCHEMA:
 {
   "title": "titre court de la leçon",
-  "full_text": "texte structuré (max 2000 mots pour éviter troncature JSON)",
-  "summary": "résumé synthétique",
+  "full_text": "texte nettoyé et structuré",
+  "summary": "vrai résumé synthétique en puces, jamais un copier-coller",
   "traps": "pièges fréquents du professeur, erreurs classiques à éviter",
   "mini_case": "mini-cas clinique illustratif avec question",
+  "image_url": "", "video_url": "", "audio_url": "", "resource_url": "",
   "abbreviations": [{"short":"AVC","full_form":"Accident vasculaire cérébral"}],
-  "questions": [{"stem":"...","teacher_note":"...","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"pourquoi vraie/fausse"}]}]
+  "questions": [{"stem":"question clinique ou conceptuelle précise","teacher_note":"note explicative","image_url":"","video_url":"","audio_url":"","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"pourquoi vraie/fausse"}]}]
 }
-Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes réponses, chaque proposition avec explanation).`;
+Règles obligatoires:
+- Le titre doit nommer le sujet, pas reprendre la première phrase.
+- Le résumé reformule et condense les idées clés.
+- Génère ${data.generateQcm ? data.qcmCount : 0} QCM a,b,c,d, 1 à 3 bonnes réponses, chaque proposition avec explanation.
+- Si aucun lien média n'est présent, laisse les champs média vides.`;
 
-    const raw = await callAI({
-      system,
-      prompt: `LEÇON BRUTE:\n${data.rawText.slice(0, 70000)}`,
-      jsonMode: true,
-      model: "google/gemini-3-flash-preview",
-    });
-    const parsed = parseAIJsonResponse<any>(raw);
+    let parsed: any = {};
+    try {
+      const raw = await callAI({
+        system,
+        prompt: `LEÇON BRUTE:\n${data.rawText.slice(0, 70000)}`,
+        jsonMode: true,
+        model: "google/gemini-2.5-pro",
+        maxTokens: 14000,
+      });
+      parsed = parseAIJsonResponse<any>(raw);
+    } catch (error) {
+      console.error("AI lesson generation failed, saving raw lesson", error);
+    }
 
     const { data: maxOrdRow } = await supabaseAdmin
       .from("lessons")
@@ -160,9 +176,13 @@ Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes ré
         title: parsed.title || `Leçon ${nextOrd + 1}`,
         ord: nextOrd,
         full_text: parsed.full_text || data.rawText.slice(0, 70000),
-        summary: parsed.summary || "",
+        summary: parsed.summary || fallbackSummary(data.rawText),
         traps: parsed.traps || "",
         mini_case: parsed.mini_case || "",
+        image_url: normalizeOptionalText(parsed.image_url),
+        video_url: normalizeOptionalText(parsed.video_url),
+        audio_url: normalizeOptionalText(parsed.audio_url),
+        resource_url: normalizeOptionalText(parsed.resource_url),
       })
       .select()
       .single();
@@ -178,7 +198,8 @@ Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes ré
     const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
     let qOrd = 0;
     for (const question of questions) {
-      if (!question?.stem) continue;
+      const choices = Array.isArray(question.choices) ? question.choices.filter((choice: any) => choice?.text) : [];
+      if (!question?.stem || choices.length < 2 || !choices.some((choice: any) => !!choice.is_correct)) continue;
       const { data: questionRow } = await supabaseAdmin
         .from("questions")
         .insert({
@@ -190,11 +211,12 @@ Génère ${data.generateQcm ? data.qcmCount : 0} QCM (a,b,c,d, 1 à 3 bonnes ré
           teacher_note: normalizeOptionalText(question.teacher_note),
           image_url: normalizeOptionalText(question.image_url),
           video_url: normalizeOptionalText(question.video_url),
+          audio_url: normalizeOptionalText(question.audio_url),
         })
         .select()
         .single();
       if (!questionRow) continue;
-      await replaceQuestionChoices(questionRow.id, question.choices ?? []);
+      await replaceQuestionChoices(questionRow.id, choices);
     }
 
     return { lessonId: lessonRow.id, qcm: questions.length };
@@ -263,11 +285,12 @@ export const adminGenerateLessonQcms = createServerFn({ method: "POST" })
     const prompt = `Génère ${data.count} QCM en français pour la leçon ci-dessous.
 Chaque QCM: stem clair, 4 propositions a,b,c,d, 1 à 3 bonnes réponses, chaque proposition avec une explanation courte (pourquoi vraie/fausse).
 Ajoute si pertinent un teacher_note court pour l'étudiant.
-JSON strict: {"questions":[{"stem":"...","teacher_note":"...","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]}]}
+Interdiction: ne copie pas une phrase entière du cours comme énoncé; transforme en question clinique, mécanistique ou de diagnostic.
+JSON strict: {"questions":[{"stem":"...","teacher_note":"...","image_url":"","video_url":"","audio_url":"","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]}]}
 
 LEÇON: ${lesson.title}
 ${(lesson.full_text || lesson.summary || "").slice(0, 14000)}`;
-    const raw = await callAI({ prompt, jsonMode: true, model: "google/gemini-3-flash-preview" });
+    const raw = await callAI({ prompt, jsonMode: true, model: "google/gemini-2.5-pro", maxTokens: 12000 });
     const parsed = parseAIJsonResponse<any>(raw);
 
     if (data.replace) {
@@ -294,7 +317,8 @@ ${(lesson.full_text || lesson.summary || "").slice(0, 14000)}`;
 
     const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
     for (const question of questions) {
-      if (!question?.stem) continue;
+      const choices = Array.isArray(question.choices) ? question.choices.filter((choice: any) => choice?.text) : [];
+      if (!question?.stem || choices.length < 2 || !choices.some((choice: any) => !!choice.is_correct)) continue;
       const { data: questionRow } = await supabaseAdmin
         .from("questions")
         .insert({
@@ -306,15 +330,89 @@ ${(lesson.full_text || lesson.summary || "").slice(0, 14000)}`;
           teacher_note: normalizeOptionalText(question.teacher_note),
           image_url: normalizeOptionalText(question.image_url),
           video_url: normalizeOptionalText(question.video_url),
+          audio_url: normalizeOptionalText(question.audio_url),
         })
         .select()
         .single();
       if (!questionRow) continue;
-      await replaceQuestionChoices(questionRow.id, question.choices ?? []);
+      await replaceQuestionChoices(questionRow.id, choices);
       count++;
     }
 
     return { count };
+  });
+
+export const adminRepairModuleContent = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ moduleId: z.string().uuid(), qcmPerLesson: z.number().min(2).max(8).default(4) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const supabaseAdmin = await getAdminClient();
+    const [{ data: lessons }, { data: existingQuestions }] = await Promise.all([
+      supabaseAdmin.from("lessons").select("id,module_id,title,full_text,summary").eq("module_id", data.moduleId).order("ord"),
+      supabaseAdmin.from("questions").select("lesson_id").eq("module_id", data.moduleId).eq("source", "admin"),
+    ]);
+    const questionCounts = new Map<string, number>();
+    for (const question of existingQuestions ?? []) {
+      if (question.lesson_id) questionCounts.set(question.lesson_id, (questionCounts.get(question.lesson_id) ?? 0) + 1);
+    }
+
+    let summariesUpdated = 0;
+    let qcmAdded = 0;
+    for (const lesson of lessons ?? []) {
+      const source = lesson.full_text || lesson.summary || "";
+      if (!source.trim()) continue;
+      const summaryLooksCopied = (lesson.summary || "").replace(/\s+/g, " ").length > source.replace(/\s+/g, " ").length * 0.65;
+      if (!lesson.summary?.trim() || summaryLooksCopied) {
+        let summary = fallbackSummary(source);
+        try {
+          summary = await callAI({
+            system: "Tu es un enseignant médical. Fais un résumé structuré en français, en puces, sans recopier les paragraphes du cours.",
+            prompt: `Leçon: ${lesson.title}\n\n${source.slice(0, 16000)}`,
+            model: "google/gemini-2.5-pro",
+            maxTokens: 4500,
+          });
+        } catch (error) {
+          console.error("AI summary repair failed", error);
+        }
+        await supabaseAdmin.from("lessons").update({ summary: summary.trim() || fallbackSummary(source) }).eq("id", lesson.id);
+        summariesUpdated++;
+      }
+
+      if ((questionCounts.get(lesson.id) ?? 0) === 0) {
+        let parsed: any = { questions: [] };
+        try {
+          const raw = await callAI({
+            prompt: `Génère ${data.qcmPerLesson} QCM médicaux en français pour cette leçon. Ne copie pas le cours comme énoncé; pose de vraies questions de raisonnement. JSON strict: {"questions":[{"stem":"...","teacher_note":"...","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]}]}\n\nLEÇON: ${lesson.title}\n${source.slice(0, 14000)}`,
+            jsonMode: true,
+            model: "google/gemini-2.5-pro",
+            maxTokens: 10000,
+          });
+          parsed = parseAIJsonResponse<any>(raw);
+        } catch (error) {
+          console.error("AI QCM repair failed", error);
+        }
+        let ord = 0;
+        for (const question of Array.isArray(parsed.questions) ? parsed.questions : []) {
+          const choices = Array.isArray(question.choices) ? question.choices.filter((choice: any) => choice?.text) : [];
+          if (!question?.stem || choices.length < 2 || !choices.some((choice: any) => !!choice.is_correct)) continue;
+          const { data: questionRow } = await supabaseAdmin.from("questions").insert({
+            module_id: data.moduleId,
+            lesson_id: lesson.id,
+            source: "admin",
+            stem: question.stem,
+            ord: ord++,
+            teacher_note: normalizeOptionalText(question.teacher_note),
+          }).select().single();
+          if (!questionRow) continue;
+          await replaceQuestionChoices(questionRow.id, choices);
+          qcmAdded++;
+        }
+      }
+    }
+    return { summariesUpdated, qcmAdded };
   });
 
 export const adminUpdateLesson = createServerFn({ method: "POST" })
@@ -328,6 +426,10 @@ export const adminUpdateLesson = createServerFn({ method: "POST" })
         summary: z.string().max(20000).optional(),
         traps: z.string().max(10000).optional(),
         mini_case: z.string().max(10000).optional(),
+        image_url: z.string().max(2000).optional().nullable(),
+        video_url: z.string().max(2000).optional().nullable(),
+        audio_url: z.string().max(2000).optional().nullable(),
+        resource_url: z.string().max(2000).optional().nullable(),
         ord: z.number().int().min(0).max(999).optional(),
       })
       .parse(input),
@@ -336,7 +438,13 @@ export const adminUpdateLesson = createServerFn({ method: "POST" })
     await assertAdmin(context.supabase, context.userId);
     const supabaseAdmin = await getAdminClient();
     const { id, ...rest } = data;
-    await supabaseAdmin.from("lessons").update(rest).eq("id", id);
+    await supabaseAdmin.from("lessons").update({
+      ...rest,
+      image_url: normalizeOptionalText(rest.image_url),
+      video_url: normalizeOptionalText(rest.video_url),
+      audio_url: normalizeOptionalText(rest.audio_url),
+      resource_url: normalizeOptionalText(rest.resource_url),
+    }).eq("id", id);
     return { ok: true };
   });
 
@@ -411,6 +519,7 @@ export const adminUpdateQuestion = createServerFn({ method: "POST" })
         teacher_note: z.string().max(5000).optional().nullable(),
         image_url: z.string().max(2000).optional().nullable(),
         video_url: z.string().max(2000).optional().nullable(),
+        audio_url: z.string().max(2000).optional().nullable(),
         choices: z
           .array(
             z.object({
@@ -441,6 +550,7 @@ export const adminUpdateQuestion = createServerFn({ method: "POST" })
       teacher_note: normalizeOptionalText(rest.teacher_note),
       image_url: normalizeOptionalText(rest.image_url),
       video_url: normalizeOptionalText(rest.video_url),
+      audio_url: normalizeOptionalText(rest.audio_url),
     }).eq("id", id);
     if (error) throw new Error(error.message);
 

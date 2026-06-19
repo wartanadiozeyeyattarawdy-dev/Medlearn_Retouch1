@@ -12,11 +12,11 @@ import { QcmRunner } from "@/components/QcmRunner";
 import { AbbreviationText } from "@/components/AbbreviationText";
 import { DuoButton } from "@/components/DuoButton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, Sparkles, BookOpen, Swords, Bot, FileText, ChevronLeft, Check, Lock } from "lucide-react";
+import { Loader2, Sparkles, BookOpen, Swords, Bot, FileText, ChevronLeft, Check, Lock, Image, Video, Volume2, LinkIcon } from "lucide-react";
 
 export const Route = createFileRoute("/modules/$moduleId")({ component: ModulePage });
 
-type Lesson = { id: string; title: string; full_text: string; summary: string; traps: string | null; mini_case: string | null; ord: number };
+type Lesson = { id: string; title: string; full_text: string; summary: string; traps: string | null; mini_case: string | null; image_url?: string | null; video_url?: string | null; audio_url?: string | null; resource_url?: string | null; ord: number };
 type Abbr = { short: string; full_form: string };
 
 function ModulePage() {
@@ -39,6 +39,8 @@ function ModulePage() {
   const [activeQ, setActiveQ] = useState<string | null>(null);
   const [activeLesson, setActiveLesson] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [aiTimer, setAiTimer] = useState(0);
+  const [aiMsg, setAiMsg] = useState<string | null>(null);
   const [tab, setTab] = useState("path");
 
   const reloadProgress = useCallback(() => {
@@ -61,6 +63,13 @@ function ModulePage() {
       markViewedFn({ data: { lessonId: activeLesson, moduleId } }).then(reloadProgress).catch(() => {});
     }
   }, [activeLesson, tab, moduleId, markViewedFn, reloadProgress]);
+
+  useEffect(() => {
+    if (!generating) return;
+    setAiTimer(0);
+    const interval = setInterval(() => setAiTimer((value) => value + 1), 1000);
+    return () => clearInterval(interval);
+  }, [generating]);
 
   if (loading || !me || !mod) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   if (!mod.module) return <div className="p-8"><Link to="/modules" className="underline">← Retour</Link><p>Module introuvable.</p></div>;
@@ -172,6 +181,14 @@ function ModulePage() {
                     <div className="text-sm whitespace-pre-wrap"><AbbreviationText text={lesson.mini_case} abbreviations={abbreviations} /></div>
                   </div>
                 )}
+                {(lesson.image_url || lesson.video_url || lesson.audio_url || lesson.resource_url) && (
+                  <div className="flex flex-wrap gap-2 border-t-2 border-border pt-4">
+                    {lesson.image_url && <a href={lesson.image_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border-2 border-border px-3 py-2 text-sm font-extrabold hover:border-primary"><Image className="h-4 w-4 text-primary" /> Image</a>}
+                    {lesson.video_url && <a href={lesson.video_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border-2 border-border px-3 py-2 text-sm font-extrabold hover:border-primary"><Video className="h-4 w-4 text-primary" /> Vidéo</a>}
+                    {lesson.audio_url && <a href={lesson.audio_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border-2 border-border px-3 py-2 text-sm font-extrabold hover:border-primary"><Volume2 className="h-4 w-4 text-primary" /> Audio</a>}
+                    {lesson.resource_url && <a href={lesson.resource_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border-2 border-border px-3 py-2 text-sm font-extrabold hover:border-primary"><LinkIcon className="h-4 w-4 text-primary" /> Ressource</a>}
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>
@@ -194,14 +211,25 @@ function ModulePage() {
               <p className="text-sm text-muted-foreground">QCM générés par l'IA à partir du cours.</p>
               <DuoButton variant="ghost" size="sm" disabled={generating}
                 onClick={async () => {
-                  setGenerating(true);
-                  try { await genFn({ data: { moduleId, count: 8 } });
+                  setGenerating(true); setAiMsg(null);
+                  try {
+                    const generated = await genFn({ data: { moduleId, count: 8 } });
                     const r = await getQFn({ data: { moduleId, source: "ai" } }); setAiQ(r);
+                    setAiMsg(`${generated.count} QCM IA prêts.`);
+                  } catch (error) {
+                    setAiMsg((error as Error).message);
                   } finally { setGenerating(false); }
                 }}>
-                <Sparkles className="h-4 w-4" /> {generating ? "Génération..." : "Régénérer 8 QCM"}
+                <Sparkles className="h-4 w-4" /> {generating ? `Génération ${aiTimer}s` : "Régénérer 8 QCM"}
               </DuoButton>
             </div>
+            {generating && (
+              <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 animate-slide-up">
+                <div className="flex justify-between text-sm font-extrabold"><span>Création du Combat IA</span><span>{aiTimer}s · env. 20-60s</span></div>
+                <div className="mt-3 h-3 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${Math.min(96, 12 + aiTimer * 3)}%` }} /></div>
+              </div>
+            )}
+            {aiMsg && <p className="text-sm font-bold text-muted-foreground">{aiMsg}</p>}
             <QcmRunner questions={aiQ} abbreviations={abbreviations} onActiveQuestion={setActiveQ} onStatsChange={refreshStats} />
           </TabsContent>
         </Tabs>
