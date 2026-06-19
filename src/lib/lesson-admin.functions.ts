@@ -342,6 +342,69 @@ ${(lesson.full_text || lesson.summary || "").slice(0, 14000)}`;
     return { count };
   });
 
+export const adminRepairModuleContent = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ moduleId: z.string().uuid(), qcmPerLesson: z.number().min(2).max(8).default(4) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const supabaseAdmin = await getAdminClient();
+    const [{ data: lessons }, { data: existingQuestions }] = await Promise.all([
+      supabaseAdmin.from("lessons").select("id,module_id,title,full_text,summary").eq("module_id", data.moduleId).order("ord"),
+      supabaseAdmin.from("questions").select("lesson_id").eq("module_id", data.moduleId).eq("source", "admin"),
+    ]);
+    const questionCounts = new Map<string, number>();
+    for (const question of existingQuestions ?? []) {
+      if (question.lesson_id) questionCounts.set(question.lesson_id, (questionCounts.get(question.lesson_id) ?? 0) + 1);
+    }
+
+    let summariesUpdated = 0;
+    let qcmAdded = 0;
+    for (const lesson of lessons ?? []) {
+      const source = lesson.full_text || lesson.summary || "";
+      if (!source.trim()) continue;
+      const summaryLooksCopied = (lesson.summary || "").replace(/\s+/g, " ").length > source.replace(/\s+/g, " ").length * 0.65;
+      if (!lesson.summary?.trim() || summaryLooksCopied) {
+        const summary = await callAI({
+          system: "Tu es un enseignant médical. Fais un résumé structuré en français, en puces, sans recopier les paragraphes du cours.",
+          prompt: `Leçon: ${lesson.title}\n\n${source.slice(0, 16000)}`,
+          model: "google/gemini-2.5-pro",
+          maxTokens: 4500,
+        });
+        await supabaseAdmin.from("lessons").update({ summary: summary.trim() || fallbackSummary(source) }).eq("id", lesson.id);
+        summariesUpdated++;
+      }
+
+      if ((questionCounts.get(lesson.id) ?? 0) === 0) {
+        const raw = await callAI({
+          prompt: `Génère ${data.qcmPerLesson} QCM médicaux en français pour cette leçon. Ne copie pas le cours comme énoncé; pose de vraies questions de raisonnement. JSON strict: {"questions":[{"stem":"...","teacher_note":"...","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]}]}\n\nLEÇON: ${lesson.title}\n${source.slice(0, 14000)}`,
+          jsonMode: true,
+          model: "google/gemini-2.5-pro",
+          maxTokens: 10000,
+        });
+        const parsed = parseAIJsonResponse<any>(raw);
+        let ord = 0;
+        for (const question of Array.isArray(parsed.questions) ? parsed.questions : []) {
+          const choices = Array.isArray(question.choices) ? question.choices.filter((choice: any) => choice?.text) : [];
+          if (!question?.stem || choices.length < 2 || !choices.some((choice: any) => !!choice.is_correct)) continue;
+          const { data: questionRow } = await supabaseAdmin.from("questions").insert({
+            module_id: data.moduleId,
+            lesson_id: lesson.id,
+            source: "admin",
+            stem: question.stem,
+            ord: ord++,
+            teacher_note: normalizeOptionalText(question.teacher_note),
+          }).select().single();
+          if (!questionRow) continue;
+          await replaceQuestionChoices(questionRow.id, choices);
+          qcmAdded++;
+        }
+      }
+    }
+    return { summariesUpdated, qcmAdded };
+  });
+
 export const adminUpdateLesson = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
