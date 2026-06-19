@@ -366,24 +366,34 @@ export const adminRepairModuleContent = createServerFn({ method: "POST" })
       if (!source.trim()) continue;
       const summaryLooksCopied = (lesson.summary || "").replace(/\s+/g, " ").length > source.replace(/\s+/g, " ").length * 0.65;
       if (!lesson.summary?.trim() || summaryLooksCopied) {
-        const summary = await callAI({
-          system: "Tu es un enseignant médical. Fais un résumé structuré en français, en puces, sans recopier les paragraphes du cours.",
-          prompt: `Leçon: ${lesson.title}\n\n${source.slice(0, 16000)}`,
-          model: "google/gemini-2.5-pro",
-          maxTokens: 4500,
-        });
+        let summary = fallbackSummary(source);
+        try {
+          summary = await callAI({
+            system: "Tu es un enseignant médical. Fais un résumé structuré en français, en puces, sans recopier les paragraphes du cours.",
+            prompt: `Leçon: ${lesson.title}\n\n${source.slice(0, 16000)}`,
+            model: "google/gemini-2.5-pro",
+            maxTokens: 4500,
+          });
+        } catch (error) {
+          console.error("AI summary repair failed", error);
+        }
         await supabaseAdmin.from("lessons").update({ summary: summary.trim() || fallbackSummary(source) }).eq("id", lesson.id);
         summariesUpdated++;
       }
 
       if ((questionCounts.get(lesson.id) ?? 0) === 0) {
-        const raw = await callAI({
-          prompt: `Génère ${data.qcmPerLesson} QCM médicaux en français pour cette leçon. Ne copie pas le cours comme énoncé; pose de vraies questions de raisonnement. JSON strict: {"questions":[{"stem":"...","teacher_note":"...","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]}]}\n\nLEÇON: ${lesson.title}\n${source.slice(0, 14000)}`,
-          jsonMode: true,
-          model: "google/gemini-2.5-pro",
-          maxTokens: 10000,
-        });
-        const parsed = parseAIJsonResponse<any>(raw);
+        let parsed: any = { questions: [] };
+        try {
+          const raw = await callAI({
+            prompt: `Génère ${data.qcmPerLesson} QCM médicaux en français pour cette leçon. Ne copie pas le cours comme énoncé; pose de vraies questions de raisonnement. JSON strict: {"questions":[{"stem":"...","teacher_note":"...","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"..."}]}]}\n\nLEÇON: ${lesson.title}\n${source.slice(0, 14000)}`,
+            jsonMode: true,
+            model: "google/gemini-2.5-pro",
+            maxTokens: 10000,
+          });
+          parsed = parseAIJsonResponse<any>(raw);
+        } catch (error) {
+          console.error("AI QCM repair failed", error);
+        }
         let ord = 0;
         for (const question of Array.isArray(parsed.questions) ? parsed.questions : []) {
           const choices = Array.isArray(question.choices) ? question.choices.filter((choice: any) => choice?.text) : [];
