@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SubscriptionRouteImport } from './routes/subscription'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as ModulesRouteImport } from './routes/modules'
@@ -21,6 +22,11 @@ import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as ModulesModuleIdRouteImport } from './routes/modules.$moduleId'
 import { Route as AdminModulesModuleIdRouteImport } from './routes/admin.modules.$moduleId'
 
+const SubscriptionRoute = SubscriptionRouteImport.update({
+  id: '/subscription',
+  path: '/subscription',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -85,6 +91,7 @@ export interface FileRoutesByFullPath {
   '/modules': typeof ModulesRouteWithChildren
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
+  '/subscription': typeof SubscriptionRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
   '/admin/': typeof AdminIndexRoute
   '/modules/': typeof ModulesIndexRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByTo {
   '/leaderboard': typeof LeaderboardRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
+  '/subscription': typeof SubscriptionRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
   '/admin': typeof AdminIndexRoute
   '/modules': typeof ModulesIndexRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/modules': typeof ModulesRouteWithChildren
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
+  '/subscription': typeof SubscriptionRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
   '/admin/': typeof AdminIndexRoute
   '/modules/': typeof ModulesIndexRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/modules'
     | '/profile'
     | '/settings'
+    | '/subscription'
     | '/modules/$moduleId'
     | '/admin/'
     | '/modules/'
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
     | '/leaderboard'
     | '/profile'
     | '/settings'
+    | '/subscription'
     | '/modules/$moduleId'
     | '/admin'
     | '/modules'
@@ -149,6 +160,7 @@ export interface FileRouteTypes {
     | '/modules'
     | '/profile'
     | '/settings'
+    | '/subscription'
     | '/modules/$moduleId'
     | '/admin/'
     | '/modules/'
@@ -163,10 +175,18 @@ export interface RootRouteChildren {
   ModulesRoute: typeof ModulesRouteWithChildren
   ProfileRoute: typeof ProfileRoute
   SettingsRoute: typeof SettingsRoute
+  SubscriptionRoute: typeof SubscriptionRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/subscription': {
+      id: '/subscription'
+      path: '/subscription'
+      fullPath: '/subscription'
+      preLoaderRoute: typeof SubscriptionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -280,6 +300,7 @@ const rootRouteChildren: RootRouteChildren = {
   ModulesRoute: ModulesRouteWithChildren,
   ProfileRoute: ProfileRoute,
   SettingsRoute: SettingsRoute,
+  SubscriptionRoute: SubscriptionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
