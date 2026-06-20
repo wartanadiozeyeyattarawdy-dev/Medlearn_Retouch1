@@ -11,7 +11,7 @@ import { ChatDrawer } from "@/components/ChatDrawer";
 import { QcmRunner } from "@/components/QcmRunner";
 import { AbbreviationText } from "@/components/AbbreviationText";
 import { DuoButton } from "@/components/DuoButton";
-import { SelectionTutor, MediaTutor } from "@/components/SelectionTutor";
+import { SelectionTutor } from "@/components/SelectionTutor";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader2, Sparkles, BookOpen, Swords, Bot, FileText, ChevronLeft, Check, Lock, Image, Video, Volume2, LinkIcon } from "lucide-react";
 
