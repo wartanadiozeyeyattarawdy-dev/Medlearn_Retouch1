@@ -297,6 +297,66 @@ export type Database = {
         }
         Relationships: []
       }
+      question_reports: {
+        Row: {
+          admin_note: string | null
+          created_at: string
+          details: string | null
+          id: string
+          module_id: string | null
+          question_id: string
+          reason: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reward_given: boolean
+          status: string
+          user_id: string
+        }
+        Insert: {
+          admin_note?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          module_id?: string | null
+          question_id: string
+          reason: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reward_given?: boolean
+          status?: string
+          user_id: string
+        }
+        Update: {
+          admin_note?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          module_id?: string | null
+          question_id?: string
+          reason?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reward_given?: boolean
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "question_reports_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "question_reports_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       questions: {
         Row: {
           audio_url: string | null
@@ -354,6 +414,45 @@ export type Database = {
           },
         ]
       }
+      subscription_plans: {
+        Row: {
+          active: boolean
+          ai_qcm_per_day: number
+          created_at: string
+          features: Json
+          hearts_max: number
+          id: string
+          label: string
+          ord: number
+          period: string
+          price_mad: number
+        }
+        Insert: {
+          active?: boolean
+          ai_qcm_per_day?: number
+          created_at?: string
+          features?: Json
+          hearts_max?: number
+          id: string
+          label: string
+          ord?: number
+          period?: string
+          price_mad?: number
+        }
+        Update: {
+          active?: boolean
+          ai_qcm_per_day?: number
+          created_at?: string
+          features?: Json
+          hearts_max?: number
+          id?: string
+          label?: string
+          ord?: number
+          period?: string
+          price_mad?: number
+        }
+        Relationships: []
+      }
       user_achievements: {
         Row: {
           achievement_id: string
@@ -403,13 +502,18 @@ export type Database = {
       }
       user_stats: {
         Row: {
+          activity_date: string | null
+          activity_minutes_today: number
+          bonus_hearts_total: number
           created_at: string
           daily_goal: number
           daily_xp: number
           daily_xp_date: string
           hearts: number
+          hearts_max: number
           hearts_updated_at: string
           last_active_date: string | null
+          last_activity_ping: string | null
           level: number
           longest_streak: number
           streak_days: number
@@ -418,13 +522,18 @@ export type Database = {
           xp: number
         }
         Insert: {
+          activity_date?: string | null
+          activity_minutes_today?: number
+          bonus_hearts_total?: number
           created_at?: string
           daily_goal?: number
           daily_xp?: number
           daily_xp_date?: string
           hearts?: number
+          hearts_max?: number
           hearts_updated_at?: string
           last_active_date?: string | null
+          last_activity_ping?: string | null
           level?: number
           longest_streak?: number
           streak_days?: number
@@ -433,13 +542,18 @@ export type Database = {
           xp?: number
         }
         Update: {
+          activity_date?: string | null
+          activity_minutes_today?: number
+          bonus_hearts_total?: number
           created_at?: string
           daily_goal?: number
           daily_xp?: number
           daily_xp_date?: string
           hearts?: number
+          hearts_max?: number
           hearts_updated_at?: string
           last_active_date?: string | null
+          last_activity_ping?: string | null
           level?: number
           longest_streak?: number
           streak_days?: number
@@ -448,6 +562,53 @@ export type Database = {
           xp?: number
         }
         Relationships: []
+      }
+      user_subscriptions: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          granted_by: string | null
+          id: string
+          note: string | null
+          plan_id: string
+          started_at: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          granted_by?: string | null
+          id?: string
+          note?: string | null
+          plan_id: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          granted_by?: string | null
+          id?: string
+          note?: string | null
+          plan_id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       years: {
         Row: {
@@ -472,6 +633,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      award_bonus_hearts: {
+        Args: { _amount: number; _user_id: string }
+        Returns: number
+      }
       award_xp: {
         Args: { _amount: number; _reason?: string }
         Returns: {
@@ -488,6 +653,15 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      ping_activity: {
+        Args: never
+        Returns: {
+          activity_minutes: number
+          awarded: number
+          hearts: number
+          hearts_max: number
+        }[]
       }
       refill_hearts_if_needed: { Args: never; Returns: undefined }
       search_modules: {
