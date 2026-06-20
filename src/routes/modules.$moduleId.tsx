@@ -11,6 +11,7 @@ import { ChatDrawer } from "@/components/ChatDrawer";
 import { QcmRunner } from "@/components/QcmRunner";
 import { AbbreviationText } from "@/components/AbbreviationText";
 import { DuoButton } from "@/components/DuoButton";
+import { SelectionTutor } from "@/components/SelectionTutor";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader2, Sparkles, BookOpen, Swords, Bot, FileText, ChevronLeft, Check, Lock, Image, Video, Volume2, LinkIcon } from "lucide-react";
 
@@ -164,6 +165,7 @@ function ModulePage() {
               })}
             </div>
             {lesson && (
+              <SelectionTutor moduleId={moduleId} lessonId={lesson.id} contextLabel={`Leçon: ${lesson.title}`}>
               <div className="duo-card p-6 space-y-4">
                 <h2 className="text-2xl font-extrabold">{lesson.title}</h2>
                 <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
@@ -190,6 +192,7 @@ function ModulePage() {
                   </div>
                 )}
               </div>
+              </SelectionTutor>
             )}
           </TabsContent>
 
@@ -203,7 +206,7 @@ function ModulePage() {
           </TabsContent>
 
           <TabsContent value="combat" className="mt-5">
-            <QcmRunner questions={adminQ} abbreviations={abbreviations} onActiveQuestion={setActiveQ} onStatsChange={refreshStats} />
+            <QcmRunner questions={adminQ} abbreviations={abbreviations} onActiveQuestion={setActiveQ} onStatsChange={refreshStats} moduleId={moduleId} lessonId={activeLesson ?? undefined} />
           </TabsContent>
 
           <TabsContent value="combat-ai" className="mt-5 space-y-3">
@@ -230,7 +233,7 @@ function ModulePage() {
               </div>
             )}
             {aiMsg && <p className="text-sm font-bold text-muted-foreground">{aiMsg}</p>}
-            <QcmRunner questions={aiQ} abbreviations={abbreviations} onActiveQuestion={setActiveQ} onStatsChange={refreshStats} />
+            <QcmRunner questions={aiQ} abbreviations={abbreviations} onActiveQuestion={setActiveQ} onStatsChange={refreshStats} moduleId={moduleId} lessonId={activeLesson ?? undefined} />
           </TabsContent>
         </Tabs>
       </main>

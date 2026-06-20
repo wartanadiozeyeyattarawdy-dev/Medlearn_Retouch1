@@ -10,6 +10,7 @@ import {
 
 import appCss from "../styles.css?url";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { ActivityPinger } from "@/components/ActivityPinger";
 
 function NotFoundComponent() {
   return (
@@ -119,6 +120,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
+        <ActivityPinger />
         <Outlet />
       </ThemeProvider>
     </QueryClientProvider>

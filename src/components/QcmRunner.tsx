@@ -2,31 +2,40 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { submitAttempt } from "@/lib/qcm.functions";
 import { checkAndAwardAchievements } from "@/lib/gamification.functions";
+import { reportQuestion } from "@/lib/hearts.functions";
 import { DuoButton } from "@/components/DuoButton";
 import { Confetti } from "@/components/Confetti";
-import { CheckCircle2, XCircle, Heart, Zap, Trophy, StickyNote, Video, Volume2 } from "lucide-react";
+import { CheckCircle2, XCircle, Heart, Zap, Trophy, StickyNote, Video, Volume2, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AbbreviationText } from "./AbbreviationText";
+import { SelectionTutor } from "./SelectionTutor";
 
 type Choice = { id: string; letter: string; text: string; is_correct: boolean; explanation: string };
 type Question = { id: string; stem: string; teacher_note?: string | null; image_url?: string | null; video_url?: string | null; audio_url?: string | null; choices: Choice[] };
 
 export function QcmRunner({
-  questions, abbreviations, onActiveQuestion, onStatsChange,
+  questions, abbreviations, onActiveQuestion, onStatsChange, moduleId, lessonId,
 }: {
   questions: Question[];
   abbreviations: { short: string; full_form: string }[];
   onActiveQuestion?: (id: string | null) => void;
   onStatsChange?: () => void;
+  moduleId?: string;
+  lessonId?: string;
 }) {
   const submit = useServerFn(submitAttempt);
   const checkAch = useServerFn(checkAndAwardAchievements);
+  const report = useServerFn(reportQuestion);
   const [index, setIndex] = useState(0);
   const [chosen, setChosen] = useState<Record<string, Set<string>>>({});
   const [submitted, setSubmitted] = useState<Record<string, { correct: boolean; xp: number; hearts: number | null }>>({});
   const [score, setScore] = useState(0);
   const [confettiTick, setConfettiTick] = useState(0);
   const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
+  const [reporting, setReporting] = useState<string | null>(null);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportMsg, setReportMsg] = useState<string | null>(null);
 
   if (!questions.length) {
     return <div className="duo-card p-8 text-center text-muted-foreground">Aucun QCM disponible pour ce module.</div>;
@@ -78,7 +87,8 @@ export function QcmRunner({
   }
 
   return (
-    <div className="space-y-4 relative">
+    <SelectionTutor moduleId={moduleId} lessonId={lessonId} contextLabel="QCM en cours">
+      <div className="space-y-4 relative">
       <Confetti trigger={confettiTick} />
       {/* progress + score */}
       <div className="flex items-center gap-3">
@@ -176,7 +186,38 @@ export function QcmRunner({
           <DuoButton variant="primary" onClick={handleSubmit} disabled={chosenSet.size===0}>Valider</DuoButton>
         </div>
       )}
-      <p className="text-center text-sm text-muted-foreground font-bold">Score : {score}</p>
-    </div>
+      <div className="flex items-center justify-between text-sm font-bold text-muted-foreground">
+        <span>Score : {score}</span>
+        <button onClick={() => { setReporting(q.id); setReportReason(""); setReportDetails(""); setReportMsg(null); }} className="inline-flex items-center gap-1 hover:text-destructive">
+          <Flag className="h-3 w-3" /> Signaler ce QCM
+        </button>
+      </div>
+      {reporting === q.id && (
+        <div className="duo-card p-4 space-y-2 border-warning/40">
+          <p className="font-extrabold text-sm">Pourquoi signaler ce QCM ?</p>
+          <select value={reportReason} onChange={(e) => setReportReason(e.target.value)} className="w-full h-10 rounded-md border bg-background px-2 text-sm">
+            <option value="">— Choisis une raison —</option>
+            <option value="Mauvaise réponse">La bonne réponse est fausse</option>
+            <option value="Énoncé ambigu">Énoncé ambigu ou peu clair</option>
+            <option value="Hors programme">Hors programme</option>
+            <option value="Faute de frappe">Faute de frappe / orthographe</option>
+            <option value="Autre">Autre</option>
+          </select>
+          <textarea value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} placeholder="Détails (optionnel)" rows={2} className="w-full rounded-md border bg-background p-2 text-sm" />
+          <div className="flex gap-2">
+            <DuoButton size="sm" variant="primary" disabled={!reportReason} onClick={async () => {
+              try {
+                await report({ data: { questionId: q.id, reason: reportReason, details: reportDetails || undefined } });
+                setReportMsg("Merci ! Un admin va vérifier. Si validé, tu gagneras +5 cœurs bonus.");
+                setTimeout(() => { setReporting(null); setReportMsg(null); }, 2500);
+              } catch (e) { setReportMsg((e as Error).message); }
+            }}>Envoyer</DuoButton>
+            <DuoButton size="sm" variant="ghost" onClick={() => setReporting(null)}>Annuler</DuoButton>
+          </div>
+          {reportMsg && <p className="text-sm font-bold">{reportMsg}</p>}
+        </div>
+      )}
+      </div>
+    </SelectionTutor>
   );
 }
