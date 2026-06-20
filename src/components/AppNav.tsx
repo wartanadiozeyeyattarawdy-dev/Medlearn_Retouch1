@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { GraduationCap, Shield, LogOut, Trophy, BookOpen, Settings, Crown } from "lucide-react";
+import { GraduationCap, Shield, LogOut, Trophy, BookOpen, Settings, Crown, Sparkles } from "lucide-react";
 import { StatsBar } from "./StatsBar";
 import type { Stats } from "@/hooks/use-stats";
 
@@ -25,6 +25,10 @@ export function AppNav({ isAdmin, stats }: { isAdmin: boolean; stats?: Stats | n
           <Link to="/leaderboard" className="flex items-center gap-1 px-3 py-2 rounded-lg hover:bg-accent text-sm font-bold">
             <Crown className="h-4 w-4" />
             <span className="hidden sm:inline">Classement</span>
+          </Link>
+          <Link to="/subscription" className="flex items-center gap-1 px-3 py-2 rounded-lg hover:bg-accent text-sm font-bold text-primary">
+            <Sparkles className="h-4 w-4" />
+            <span className="hidden sm:inline">Premium</span>
           </Link>
           <Link to="/settings" className="flex items-center gap-1 px-3 py-2 rounded-lg hover:bg-accent text-sm font-bold">
             <Settings className="h-4 w-4" />
