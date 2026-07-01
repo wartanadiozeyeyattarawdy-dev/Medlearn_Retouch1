@@ -1,0 +1,70 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+// Vérifier si l'utilisateur peut utiliser l'IA
+export const checkAILimit = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+
+    const { data, error } = await supabase.rpc("check_ai_limit", {
+      p_user_id: userId,
+    });
+
+    if (error) throw new Error(error.message);
+
+    return (data as any[])?.[0] || { can_use: true, daily_limit: 10, used_today: 0 };
+  });
+
+// Incrémenter l'utilisation IA
+export const incrementAIUsage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) =>
+    z.object({
+      tokens: z.number().min(0).max(100000).default(0),
+    }).parse(i)
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    const { data: result, error } = await supabase.rpc("increment_ai_usage", {
+      p_user_id: userId,
+      p_tokens: data.tokens,
+    });
+
+    if (error) throw new Error(error.message);
+    return { count: result };
+  });
+
+// Admin: Récupérer les statistiques d'utilisation
+export const adminGetAIUsageStats = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+
+    // Vérifier admin
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    if (!(roles ?? []).some((r) => r.role === "admin")) throw new Error("Admin requis");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Récupérer les stats
+    const { data: stats } = await supabaseAdmin
+      .from("ai_usage_stats")
+      .select("*")
+      .limit(50);
+
+    // Récupérer le total
+    const { data: total } = await supabaseAdmin
+      .from("ai_usage")
+      .select("requests_count", { count: "exact" });
+
+    return {
+      stats: stats || [],
+      total_requests: total?.length || 0,
+    };
+  });

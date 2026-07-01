@@ -1,3 +1,9 @@
+import { supabase } from "@/integrations/supabase/client";
+
+// ============================================================
+// FONCTIONS DE BASE - APPEL IA
+// ============================================================
+
 export async function callAI(opts: {
   system?: string;
   prompt: string;
@@ -113,4 +119,196 @@ export function parseAIJsonResponse<T>(raw: string): T {
 
   console.error("Failed to parse AI JSON. Raw content:", raw.slice(0, 1000));
   throw new Error("Réponse IA invalide ou tronquée (limite de tokens atteinte ?)");
+}
+
+// ============================================================
+// NOUVELLES FONCTIONS : APPEL IA AVEC LIMITES
+// ============================================================
+
+/**
+ * Vérifie les limites IA pour un utilisateur et appelle l'IA si autorisé
+ */
+export async function callAIWithLimit(opts: {
+  system?: string;
+  prompt: string;
+  model?: string;
+  jsonMode?: boolean;
+  maxTokens?: number;
+  userId: string;
+}): Promise<string> {
+  // 1. Vérifier les limites
+  const { data: limitCheck, error } = await supabase.rpc("check_ai_limit", {
+    p_user_id: opts.userId,
+  });
+
+  if (error) {
+    console.error("Erreur vérification limites:", error);
+    throw new Error("Erreur de vérification des limites IA");
+  }
+
+  const result = (limitCheck as any[])?.[0];
+  if (!result) {
+    throw new Error("Impossible de vérifier les limites IA");
+  }
+
+  if (!result.can_use) {
+    throw new Error(`Limite IA atteinte (${result.used_today}/${result.daily_limit} par jour)`);
+  }
+
+  // 2. Appeler l'IA
+  try {
+    const response = await callAI({
+      system: opts.system,
+      prompt: opts.prompt,
+      model: opts.model,
+      jsonMode: opts.jsonMode,
+      maxTokens: opts.maxTokens,
+    });
+
+    // 3. Incrémenter l'utilisation
+    const { error: incrementError } = await supabase.rpc("increment_ai_usage", {
+      p_user_id: opts.userId,
+      p_tokens: opts.maxTokens || 1000,
+    });
+
+    if (incrementError) {
+      console.error("Erreur incrémentation usage:", incrementError);
+      // Ne pas bloquer la réponse si l'incrémentation échoue
+    }
+
+    return response;
+  } catch (error) {
+    console.error("AI call with limit failed:", error);
+    throw error;
+  }
+}
+
+/**
+ * Appel IA pour les fonctions admin (sans limite)
+ */
+export async function callAIAdmin(opts: {
+  system?: string;
+  prompt: string;
+  model?: string;
+  jsonMode?: boolean;
+  maxTokens?: number;
+}): Promise<string> {
+  // Pas de vérification de limites pour les admins
+  return callAI(opts);
+}
+
+/**
+ * Vérifie les limites sans faire d'appel
+ */
+export async function checkAILimit(userId: string): Promise<{
+  can_use: boolean;
+  daily_limit: number;
+  used_today: number;
+}> {
+  const { data, error } = await supabase.rpc("check_ai_limit", {
+    p_user_id: userId,
+  });
+
+  if (error) {
+    console.error("Erreur vérification limites:", error);
+    return { can_use: true, daily_limit: 10, used_today: 0 };
+  }
+
+  const result = (data as any[])?.[0];
+  return result || { can_use: true, daily_limit: 10, used_today: 0 };
+}
+
+/**
+ * Récupère les limites pour un utilisateur
+ */
+export async function getAILimit(userId: string): Promise<{
+  daily_limit: number;
+  used_today: number;
+  remaining: number;
+  plan_label: string;
+}> {
+  // Récupérer le plan actif
+  const { data: subs } = await supabase
+    .from("user_subscriptions")
+    .select("plan_id, subscription_plans(label, ai_qcm_per_day)")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .order("started_at", { ascending: false })
+    .limit(1);
+
+  let planId = "free";
+  let planLabel = "Gratuit";
+  let dailyLimit = 10;
+
+  if (subs && subs.length > 0 && subs[0].subscription_plans) {
+    planId = subs[0].plan_id;
+    planLabel = subs[0].subscription_plans.label || "Gratuit";
+    dailyLimit = subs[0].subscription_plans.ai_qcm_per_day || 10;
+  }
+
+  // Récupérer l'utilisation du jour
+  const today = new Date().toISOString().split("T")[0];
+  const { data: usage } = await supabase
+    .from("ai_usage")
+    .select("requests_count")
+    .eq("user_id", userId)
+    .eq("date", today)
+    .maybeSingle();
+
+  const usedToday = usage?.requests_count || 0;
+
+  return {
+    daily_limit: dailyLimit,
+    used_today: usedToday,
+    remaining: Math.max(0, dailyLimit - usedToday),
+    plan_label: planLabel,
+  };
+}
+
+// ============================================================
+// FONCTIONS D'ADMIN POUR LES STATISTIQUES
+// ============================================================
+
+/**
+ * Récupère les statistiques d'utilisation IA (admin uniquement)
+ */
+export async function adminGetAIStats(userId: string): Promise<{
+  stats: any[];
+  total_requests: number;
+  total_users: number;
+}> {
+  // Vérifier admin
+  const { data: roles } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId);
+
+  if (!(roles ?? []).some((r) => r.role === "admin")) {
+    throw new Error("Admin requis");
+  }
+
+  // Récupérer les stats
+  const { data: stats } = await supabase
+    .from("ai_usage_stats")
+    .select("*")
+    .order("date", { ascending: false })
+    .limit(50);
+
+  // Total des requêtes
+  const { count: totalRequests } = await supabase
+    .from("ai_usage")
+    .select("*", { count: "exact", head: true });
+
+  // Nombre d'utilisateurs uniques
+  const { data: users } = await supabase
+    .from("ai_usage")
+    .select("user_id");
+
+  const uniqueUsers = new Set((users || []).map((u) => u.user_id));
+
+  return {
+    stats: stats || [],
+    total_requests: totalRequests || 0,
+    total_users: uniqueUsers.size,
+  };
 }

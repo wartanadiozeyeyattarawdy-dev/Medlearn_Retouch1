@@ -139,7 +139,9 @@ SCHEMA:
   "image_url": "", "video_url": "", "audio_url": "", "resource_url": "",
   "abbreviations": [{"short":"AVC","full_form":"Accident vasculaire cérébral"}],
   "questions": [{"stem":"question clinique ou conceptuelle précise","teacher_note":"note explicative","image_url":"","video_url":"","audio_url":"","choices":[{"letter":"a","text":"...","is_correct":true,"explanation":"pourquoi vraie/fausse"}]}]
-}
+  "youtube_url": "",
+  "image_url": "", "video_url": "", "audio_url": "", "resource_url": "",
+  }
 Règles obligatoires:
 - Le titre doit nommer le sujet, pas reprendre la première phrase.
 - Le résumé reformule et condense les idées clés.
@@ -159,7 +161,7 @@ Règles obligatoires:
     } catch (error) {
       console.error("AI lesson generation failed, saving raw lesson", error);
     }
-
+    
     const { data: maxOrdRow } = await supabaseAdmin
       .from("lessons")
       .select("ord")
@@ -179,6 +181,7 @@ Règles obligatoires:
         summary: parsed.summary || fallbackSummary(data.rawText),
         traps: parsed.traps || "",
         mini_case: parsed.mini_case || "",
+        youtube_url: normalizeOptionalText(parsed.youtube_url),
         image_url: normalizeOptionalText(parsed.image_url),
         video_url: normalizeOptionalText(parsed.video_url),
         audio_url: normalizeOptionalText(parsed.audio_url),
@@ -426,6 +429,7 @@ export const adminUpdateLesson = createServerFn({ method: "POST" })
         summary: z.string().max(20000).optional(),
         traps: z.string().max(10000).optional(),
         mini_case: z.string().max(10000).optional(),
+        youtube_url: z.string().max(2000).optional().nullable(),
         image_url: z.string().max(2000).optional().nullable(),
         video_url: z.string().max(2000).optional().nullable(),
         audio_url: z.string().max(2000).optional().nullable(),
@@ -444,6 +448,7 @@ export const adminUpdateLesson = createServerFn({ method: "POST" })
       video_url: normalizeOptionalText(rest.video_url),
       audio_url: normalizeOptionalText(rest.audio_url),
       resource_url: normalizeOptionalText(rest.resource_url),
+      youtube_url: normalizeOptionalText(rest.youtube_url),
     }).eq("id", id);
     return { ok: true };
   });

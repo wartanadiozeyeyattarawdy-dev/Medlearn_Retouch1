@@ -14,7 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader2, Trash2, Flag, Crown, BookOpen, Check, X } from "lucide-react";
-
+import { 
+  Banknote, 
+  CreditCard,
+  TrendingUp
+} from "lucide-react";
 export const Route = createFileRoute("/admin/")({
   component: AdminPage,
 });
@@ -99,9 +103,13 @@ function AdminPage() {
             <TabsTrigger value="modules" className="rounded-lg gap-1 font-bold"><BookOpen className="h-4 w-4" /> Modules</TabsTrigger>
             <TabsTrigger value="reports" className="rounded-lg gap-1 font-bold"><Flag className="h-4 w-4" /> Signalements {pendingReports.length > 0 && <span className="ml-1 rounded-full bg-destructive text-destructive-foreground text-xs px-1.5">{pendingReports.length}</span>}</TabsTrigger>
             <TabsTrigger value="subs" className="rounded-lg gap-1 font-bold"><Crown className="h-4 w-4" /> Abonnements</TabsTrigger>
+            <TabsTrigger value="payments" className="rounded-lg gap-1 font-bold">
+  <CreditCard className="h-4 w-4" /> Paiements
+</TabsTrigger>
           </TabsList>
 
           <TabsContent value="modules" className="mt-5 space-y-6">
+            
         <Card className="border-primary/40">
           <CardHeader><CardTitle>➕ Créer un module — puis ajout leçon par leçon</CardTitle></CardHeader>
           <CardContent className="space-y-3">
@@ -155,6 +163,38 @@ function AdminPage() {
           </CardContent>
         </Card>
           </TabsContent>
+           
+// Dans les TabsContent, ajouter :
+<TabsContent value="payments" className="mt-5 space-y-3">
+  <Card>
+    <CardHeader>
+      <CardTitle>💳 Gestion des paiements</CardTitle>
+    </CardHeader>
+    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <Link to="/admin/payments/bank">
+        <div className="border-2 rounded-xl p-6 hover:border-primary transition-colors cursor-pointer">
+          <Banknote className="h-8 w-8 text-primary mb-2" />
+          <h3 className="font-extrabold">Virements bancaires</h3>
+          <p className="text-sm text-muted-foreground">Gérer les virements reçus</p>
+        </div>
+      </Link>
+      <Link to="/admin/payments/card">
+        <div className="border-2 rounded-xl p-6 hover:border-primary transition-colors cursor-pointer">
+          <CreditCard className="h-8 w-8 text-primary mb-2" />
+          <h3 className="font-extrabold">Paiements par carte</h3>
+          <p className="text-sm text-muted-foreground">Suivi des paiements + CA</p>
+        </div>
+      </Link>
+      <Link to="/admin/payments/bank">
+        <div className="border-2 rounded-xl p-6 hover:border-primary transition-colors cursor-pointer">
+          <TrendingUp className="h-8 w-8 text-primary mb-2" />
+          <h3 className="font-extrabold">Éditer les tarifs</h3>
+          <p className="text-sm text-muted-foreground">Modifier les prix en temps réel</p>
+        </div>
+      </Link>
+    </CardContent>
+  </Card>
+</TabsContent>
 
           <TabsContent value="reports" className="mt-5 space-y-3">
             <Card>

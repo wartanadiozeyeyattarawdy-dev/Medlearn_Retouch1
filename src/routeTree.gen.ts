@@ -20,6 +20,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ModulesIndexRouteImport } from './routes/modules.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as ModulesModuleIdRouteImport } from './routes/modules.$moduleId'
+import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as AdminReportsRouteImport } from './routes/admin.reports'
+import { Route as AdminPaymentsCardRouteImport } from './routes/admin.payments.card'
+import { Route as AdminPaymentsBankRouteImport } from './routes/admin.payments.bank'
 import { Route as AdminModulesModuleIdRouteImport } from './routes/admin.modules.$moduleId'
 
 const SubscriptionRoute = SubscriptionRouteImport.update({
@@ -77,6 +81,26 @@ const ModulesModuleIdRoute = ModulesModuleIdRouteImport.update({
   path: '/$moduleId',
   getParentRoute: () => ModulesRoute,
 } as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminReportsRoute = AdminReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPaymentsCardRoute = AdminPaymentsCardRouteImport.update({
+  id: '/payments/card',
+  path: '/payments/card',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPaymentsBankRoute = AdminPaymentsBankRouteImport.update({
+  id: '/payments/bank',
+  path: '/payments/bank',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminModulesModuleIdRoute = AdminModulesModuleIdRouteImport.update({
   id: '/modules/$moduleId',
   path: '/modules/$moduleId',
@@ -92,10 +116,14 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/subscription': typeof SubscriptionRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
   '/admin/': typeof AdminIndexRoute
   '/modules/': typeof ModulesIndexRoute
   '/admin/modules/$moduleId': typeof AdminModulesModuleIdRoute
+  '/admin/payments/bank': typeof AdminPaymentsBankRoute
+  '/admin/payments/card': typeof AdminPaymentsCardRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -104,10 +132,14 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/subscription': typeof SubscriptionRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
   '/admin': typeof AdminIndexRoute
   '/modules': typeof ModulesIndexRoute
   '/admin/modules/$moduleId': typeof AdminModulesModuleIdRoute
+  '/admin/payments/bank': typeof AdminPaymentsBankRoute
+  '/admin/payments/card': typeof AdminPaymentsCardRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -119,10 +151,14 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/subscription': typeof SubscriptionRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/modules/$moduleId': typeof ModulesModuleIdRoute
   '/admin/': typeof AdminIndexRoute
   '/modules/': typeof ModulesIndexRoute
   '/admin/modules/$moduleId': typeof AdminModulesModuleIdRoute
+  '/admin/payments/bank': typeof AdminPaymentsBankRoute
+  '/admin/payments/card': typeof AdminPaymentsCardRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -135,10 +171,14 @@ export interface FileRouteTypes {
     | '/profile'
     | '/settings'
     | '/subscription'
+    | '/admin/reports'
+    | '/admin/users'
     | '/modules/$moduleId'
     | '/admin/'
     | '/modules/'
     | '/admin/modules/$moduleId'
+    | '/admin/payments/bank'
+    | '/admin/payments/card'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -147,10 +187,14 @@ export interface FileRouteTypes {
     | '/profile'
     | '/settings'
     | '/subscription'
+    | '/admin/reports'
+    | '/admin/users'
     | '/modules/$moduleId'
     | '/admin'
     | '/modules'
     | '/admin/modules/$moduleId'
+    | '/admin/payments/bank'
+    | '/admin/payments/card'
   id:
     | '__root__'
     | '/'
@@ -161,10 +205,14 @@ export interface FileRouteTypes {
     | '/profile'
     | '/settings'
     | '/subscription'
+    | '/admin/reports'
+    | '/admin/users'
     | '/modules/$moduleId'
     | '/admin/'
     | '/modules/'
     | '/admin/modules/$moduleId'
+    | '/admin/payments/bank'
+    | '/admin/payments/card'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -257,6 +305,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ModulesModuleIdRouteImport
       parentRoute: typeof ModulesRoute
     }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/reports': {
+      id: '/admin/reports'
+      path: '/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AdminReportsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/payments/card': {
+      id: '/admin/payments/card'
+      path: '/payments/card'
+      fullPath: '/admin/payments/card'
+      preLoaderRoute: typeof AdminPaymentsCardRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/payments/bank': {
+      id: '/admin/payments/bank'
+      path: '/payments/bank'
+      fullPath: '/admin/payments/bank'
+      preLoaderRoute: typeof AdminPaymentsBankRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/modules/$moduleId': {
       id: '/admin/modules/$moduleId'
       path: '/modules/$moduleId'
@@ -268,13 +344,21 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
+  AdminReportsRoute: typeof AdminReportsRoute
+  AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminModulesModuleIdRoute: typeof AdminModulesModuleIdRoute
+  AdminPaymentsBankRoute: typeof AdminPaymentsBankRoute
+  AdminPaymentsCardRoute: typeof AdminPaymentsCardRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminReportsRoute: AdminReportsRoute,
+  AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminModulesModuleIdRoute: AdminModulesModuleIdRoute,
+  AdminPaymentsBankRoute: AdminPaymentsBankRoute,
+  AdminPaymentsCardRoute: AdminPaymentsCardRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
@@ -305,3 +389,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

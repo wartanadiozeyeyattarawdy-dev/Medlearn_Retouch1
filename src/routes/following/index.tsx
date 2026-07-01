@@ -29,7 +29,7 @@ import {
   Globe
 } from "lucide-react";
 
-export const Route = createFileRoute("/profile/$userId")({
+export const Route = createFileRoute("/following/")({
   component: PublicProfilePage,
 });
 

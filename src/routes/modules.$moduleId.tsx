@@ -9,15 +9,16 @@ import { getModuleProgress, markLessonViewed } from "@/lib/gamification.function
 import { AppNav } from "@/components/AppNav";
 import { ChatDrawer } from "@/components/ChatDrawer";
 import { QcmRunner } from "@/components/QcmRunner";
+import { QcmGame } from "@/components/QcmGame";
 import { AbbreviationText } from "@/components/AbbreviationText";
 import { DuoButton } from "@/components/DuoButton";
 import { SelectionTutor } from "@/components/SelectionTutor";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, Sparkles, BookOpen, Swords, Bot, FileText, ChevronLeft, Check, Lock, Image, Video, Volume2, LinkIcon } from "lucide-react";
-
+import { Loader2, Sparkles, BookOpen, Swords, Bot, FileText, ChevronLeft, Check, Lock, Image, Video, Volume2, LinkIcon, Gamepad2 } from "lucide-react";
+import { YouTubeEmbed } from "@/components/YouTubeEmbed";
 export const Route = createFileRoute("/modules/$moduleId")({ component: ModulePage });
 
-type Lesson = { id: string; title: string; full_text: string; summary: string; traps: string | null; mini_case: string | null; image_url?: string | null; video_url?: string | null; audio_url?: string | null; resource_url?: string | null; ord: number };
+type Lesson = { id: string; title: string; full_text: string; summary: string; traps: string | null; mini_case: string | null; youtube_url?: string | null; image_url?: string | null; video_url?: string | null; audio_url?: string | null; resource_url?: string | null; ord: number };
 type Abbr = { short: string; full_form: string };
 
 function ModulePage() {
@@ -82,6 +83,15 @@ function ModulePage() {
 
   return (
     <div className="min-h-screen pb-20">
+      <div className="duo-card p-6 space-y-4">
+  <h2 className="text-2xl font-extrabold">{lesson.title}</h2>
+  
+  {/* AFFICHER LA VIDÉO YOUTUBE */}
+  {lesson.youtube_url && (
+    <YouTubeEmbed url={lesson.youtube_url} title={`Vidéo: ${lesson.title}`} />
+  )}
+  
+  <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap"></div>
       <AppNav isAdmin={me.isAdmin} stats={stats} />
       <main className="container mx-auto p-4 sm:p-6 space-y-5 max-w-5xl">
         <Link to="/modules" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground font-bold">
@@ -108,15 +118,15 @@ function ModulePage() {
         </div>
 
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="grid grid-cols-2 sm:grid-cols-5 gap-1 h-auto p-1 rounded-xl bg-muted">
+          <TabsList className="grid grid-cols-2 sm:grid-cols-6 gap-1 h-auto p-1 rounded-xl bg-muted">
             <TabsTrigger value="path" className="rounded-lg font-bold gap-1"><Sparkles className="h-4 w-4" />Parcours</TabsTrigger>
             <TabsTrigger value="lessons" className="rounded-lg font-bold gap-1"><BookOpen className="h-4 w-4" />Leçons</TabsTrigger>
             <TabsTrigger value="summaries" className="rounded-lg font-bold gap-1"><FileText className="h-4 w-4" />Résumés</TabsTrigger>
             <TabsTrigger value="combat" className="rounded-lg font-bold gap-1"><Swords className="h-4 w-4" />Combat</TabsTrigger>
             <TabsTrigger value="combat-ai" className="rounded-lg font-bold gap-1"><Bot className="h-4 w-4" />IA</TabsTrigger>
+            <TabsTrigger value="game" className="rounded-lg font-bold gap-1"><Gamepad2 className="h-4 w-4" />Jeu</TabsTrigger>
           </TabsList>
 
-          {/* PATH — Duolingo-style lesson tree */}
           <TabsContent value="path" className="mt-5">
             <div className="duo-card p-6">
               <h2 className="font-extrabold text-xl mb-4">Ton parcours</h2>
@@ -149,6 +159,10 @@ function ModulePage() {
                 </DuoButton>
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="game" className="mt-5">
+            <QcmGame moduleId={moduleId} onStatsChange={refreshStats} />
           </TabsContent>
 
           <TabsContent value="lessons" className="mt-5 space-y-3">

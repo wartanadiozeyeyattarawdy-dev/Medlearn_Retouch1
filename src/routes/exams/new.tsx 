@@ -1,0 +1,314 @@
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useMe } from "@/hooks/use-me";
+import { createMockExam } from "@/lib/social.functions";
+import { getModuleQuestions } from "@/lib/qcm.functions";
+import { AppNav } from "@/components/AppNav";
+import { DuoButton } from "@/components/DuoButton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Loader2, ArrowLeft, Plus, X, Check } from "lucide-react";
+
+export const Route = createFileRoute("/exams/new")({
+  component: NewExamPage,
+});
+
+function NewExamPage() {
+  const { me, loading } = useMe();
+  const navigate = useNavigate();
+  const createFn = useServerFn(createMockExam);
+  const getQuestionsFn = useServerFn(getModuleQuestions);
+
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    moduleId: "",
+    durationMinutes: 60,
+    totalQuestions: 10,
+    passingScore: 60,
+    isFree: true,
+    price: 0,
+    startDate: "",
+    endDate: "",
+  });
+  const [availableQuestions, setAvailableQuestions] = useState<any[]>([]);
+  const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
+
+  useEffect(() => {
+    if (form.moduleId) {
+      loadQuestions();
+    }
+  }, [form.moduleId]);
+
+  const loadQuestions = async () => {
+    setLoadingQuestions(true);
+    try {
+      const data = await getQuestionsFn({ 
+        data: { moduleId: form.moduleId, source: "admin" } 
+      });
+      setAvailableQuestions(data || []);
+    } catch (err) {
+      console.error("Erreur chargement questions:", err);
+    } finally {
+      setLoadingQuestions(false);
+    }
+  };
+
+  if (loading || !me) {
+    return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
+
+  const canCreate = me.isAdmin || me.profile?.is_professor;
+  if (!canCreate) {
+    return (
+      <div className="min-h-screen">
+        <AppNav isAdmin={me.isAdmin} />
+        <main className="container mx-auto p-6 max-w-2xl">
+          <Card>
+            <CardContent className="p-8 text-center">
+              <h2 className="text-2xl font-extrabold">🔒 Accès réservé</h2>
+              <p className="text-muted-foreground mt-2">
+                Seuls les professeurs peuvent créer des examens.
+              </p>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  const toggleQuestion = (questionId: string) => {
+    setSelectedQuestions(prev =>
+      prev.includes(questionId)
+        ? prev.filter(id => id !== questionId)
+        : [...prev, questionId]
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
+    if (selectedQuestions.length === 0) {
+      setError("Sélectionne au moins une question");
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      await createFn({
+        data: {
+          title: form.title,
+          description: form.description,
+          moduleId: form.moduleId || null,
+          durationMinutes: form.durationMinutes,
+          totalQuestions: selectedQuestions.length,
+          passingScore: form.passingScore,
+          isFree: form.isFree,
+          price: form.price,
+          startDate: form.startDate || null,
+          endDate: form.endDate || null,
+          questions: selectedQuestions,
+        },
+      });
+      navigate({ to: "/exams" });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const filteredQuestions = availableQuestions.filter(q =>
+    q.stem?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="min-h-screen">
+      <AppNav isAdmin={me.isAdmin} />
+      <main className="container mx-auto p-4 sm:p-6 max-w-4xl">
+        <Link to="/exams" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground font-bold">
+          <ArrowLeft className="h-4 w-4" /> Retour aux examens
+        </Link>
+
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>📝 Créer un examen blanc</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label>Titre *</Label>
+                <Input
+                  required
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  placeholder="Titre de l'examen"
+                />
+              </div>
+
+              <div>
+                <Label>Description</Label>
+                <Textarea
+                  rows={3}
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Décris l'examen..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Module (optionnel)</Label>
+                  <select
+                    className="w-full rounded-lg border-2 p-2 bg-background"
+                    value={form.moduleId}
+                    onChange={(e) => setForm({ ...form, moduleId: e.target.value })}
+                  >
+                    <option value="">Aucun module</option>
+                    {/* TODO: Charger la liste des modules */}
+                  </select>
+                </div>
+                <div>
+                  <Label>Durée (minutes) *</Label>
+                  <Input
+                    type="number"
+                    min={5}
+                    max={180}
+                    required
+                    value={form.durationMinutes}
+                    onChange={(e) => setForm({ ...form, durationMinutes: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Score de réussite (%)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={form.passingScore}
+                    onChange={(e) => setForm({ ...form, passingScore: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <Label>Prix (MAD)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.price}
+                    onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+                    disabled={form.isFree}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={form.isFree}
+                  onChange={(e) => setForm({ ...form, isFree: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                <Label className="text-sm font-bold">Examen gratuit</Label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Date de début</Label>
+                  <Input
+                    type="datetime-local"
+                    value={form.startDate}
+                    onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Date de fin</Label>
+                  <Input
+                    type="datetime-local"
+                    value={form.endDate}
+                    onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Sélection des questions */}
+              <div>
+                <Label>Sélectionne les questions *</Label>
+                {loadingQuestions ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <Input
+                      placeholder="Rechercher une question..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="mb-2"
+                    />
+                    <div className="max-h-60 overflow-y-auto border rounded-lg p-2 space-y-1">
+                      {filteredQuestions.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-2">
+                          {form.moduleId ? "Aucune question dans ce module" : "Sélectionne un module pour voir les questions"}
+                        </p>
+                      ) : (
+                        filteredQuestions.map((q) => (
+                          <button
+                            key={q.id}
+                            type="button"
+                            className={`w-full text-left p-2 rounded-lg text-sm flex items-center justify-between hover:bg-accent ${
+                              selectedQuestions.includes(q.id) ? "bg-primary/10 border-primary" : "border-transparent"
+                            }`}
+                            onClick={() => toggleQuestion(q.id)}
+                          >
+                            <span className="line-clamp-2">{q.stem}</span>
+                            {selectedQuestions.includes(q.id) ? (
+                              <Check className="h-4 w-4 text-primary shrink-0 ml-2" />
+                            ) : (
+                              <Plus className="h-4 w-4 text-muted-foreground shrink-0 ml-2" />
+                            )}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Sélectionnées: {selectedQuestions.length}</span>
+                      <span>Disponibles: {filteredQuestions.length}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {error && (
+                <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+
+              <DuoButton
+                type="submit"
+                variant="primary"
+                disabled={isSubmitting || !form.title || selectedQuestions.length === 0}
+                className="w-full"
+              >
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Créer l'examen ({selectedQuestions.length} questions)
+              </DuoButton>
+            </form>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+}

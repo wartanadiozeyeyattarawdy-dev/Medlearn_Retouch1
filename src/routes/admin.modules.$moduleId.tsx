@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Plus, Sparkles, Trash2, Wand2, ChevronLeft, Save, RefreshCw, Image, Video, StickyNote, Eye, Volume2, LinkIcon } from "lucide-react";
+import { Loader2, Plus, Sparkles, Trash2, Wand2, ChevronLeft, Save, RefreshCw, Image, Video, StickyNote, Eye, Volume2, LinkIcon, Edit, Youtube } from "lucide-react";
 
 export const Route = createFileRoute("/admin/modules/$moduleId")({ component: ModuleEditor });
 
@@ -121,7 +121,7 @@ function ModuleEditor() {
       teacher_note: q.teacher_note || "",
       image_url: q.image_url || "",
       video_url: q.video_url || "",
-        audio_url: q.audio_url || "",
+      audio_url: q.audio_url || "",
       choices: choices.length ? choices : ["a", "b", "c", "d"].map((letter) => ({ letter, text: "", is_correct: false, explanation: "" })),
     });
   };
@@ -226,11 +226,26 @@ function ModuleEditor() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>📚 Leçons ({lessons.length})</CardTitle>
+            {lessons.length > 0 && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => {
+                  if (editing === "all") {
+                    setEditing(null);
+                  } else {
+                    setEditing("all");
+                  }
+                }}
+              >
+                {editing === "all" ? "Fermer tout" : "Tout éditer"}
+              </Button>
+            )}
           </CardHeader>
           <CardContent className="space-y-3">
             {lessons.length === 0 && <p className="text-sm text-muted-foreground">Aucune leçon. Utilise le bloc ci-dessus.</p>}
             {lessons.map((l) => {
-              const isEdit = editing === l.id;
+              const isEdit = editing === l.id || editing === "all";
               const lessonQs = questions.filter((q) => q.lesson_id === l.id && q.source === "admin");
               return (
                 <div key={l.id} className="border-2 rounded-xl p-4 space-y-3">
@@ -243,6 +258,7 @@ function ModuleEditor() {
                           {l.summary && <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-bold">résumé ✓</span>}
                           {l.traps && <span className="px-2 py-0.5 rounded bg-warning/15 text-warning-foreground font-bold">pièges ✓</span>}
                           {l.mini_case && <span className="px-2 py-0.5 rounded bg-sky/15 text-sky font-bold">cas ✓</span>}
+                          {l.youtube_url && <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-500 font-bold inline-flex items-center gap-1"><Youtube className="h-3 w-3" /> YouTube</span>}
                           {l.image_url && <span className="px-2 py-0.5 rounded bg-sky/15 text-sky font-bold inline-flex items-center gap-1"><Image className="h-3 w-3" /> image</span>}
                           {l.video_url && <span className="px-2 py-0.5 rounded bg-xp/15 text-xp font-bold inline-flex items-center gap-1"><Video className="h-3 w-3" /> vidéo</span>}
                           {l.audio_url && <span className="px-2 py-0.5 rounded bg-heart/10 text-heart font-bold inline-flex items-center gap-1"><Volume2 className="h-3 w-3" /> audio</span>}
@@ -251,7 +267,24 @@ function ModuleEditor() {
                         </div>
                       </div>
                       <div className="flex flex-col gap-1">
-                        <Button size="sm" variant="outline" onClick={() => { setEditing(l.id); setDraft({ title: l.title, full_text: l.full_text, summary: l.summary, traps: l.traps, mini_case: l.mini_case, image_url: l.image_url || "", video_url: l.video_url || "", audio_url: l.audio_url || "", resource_url: l.resource_url || "", ord: l.ord }); }}>Éditer</Button>
+                        <Button size="sm" variant="outline" onClick={() => { 
+                          setEditing(l.id); 
+                          setDraft({ 
+                            title: l.title, 
+                            full_text: l.full_text, 
+                            summary: l.summary, 
+                            traps: l.traps, 
+                            mini_case: l.mini_case, 
+                            youtube_url: l.youtube_url || "",
+                            image_url: l.image_url || "", 
+                            video_url: l.video_url || "", 
+                            audio_url: l.audio_url || "", 
+                            resource_url: l.resource_url || "", 
+                            ord: l.ord 
+                          }); 
+                        }}>
+                          <Edit className="h-3 w-3 mr-1" /> Éditer
+                        </Button>
                         <Button size="sm" variant="ghost" onClick={() => { if (confirm("Supprimer cette leçon ?")) run("d"+l.id, () => deleteLessonFn({ data: { id: l.id } }), "Leçon supprimée"); }}>
                           <Trash2 className="h-3 w-3" />
                         </Button>
@@ -267,7 +300,8 @@ function ModuleEditor() {
                       <Textarea rows={4} value={draft.summary || ""} onChange={(e) => setDraft({...draft, summary: e.target.value})} placeholder="Résumé" />
                       <Textarea rows={3} value={draft.traps || ""} onChange={(e) => setDraft({...draft, traps: e.target.value})} placeholder="Pièges du prof" />
                       <Textarea rows={3} value={draft.mini_case || ""} onChange={(e) => setDraft({...draft, mini_case: e.target.value})} placeholder="Mini-cas clinique" />
-                      <div className="grid sm:grid-cols-4 gap-2">
+                      <div className="grid sm:grid-cols-5 gap-2">
+                        <Input value={draft.youtube_url || ""} onChange={(e) => setDraft({...draft, youtube_url: e.target.value})} placeholder="Lien YouTube" />
                         <Input value={draft.image_url || ""} onChange={(e) => setDraft({...draft, image_url: e.target.value})} placeholder="Lien image" />
                         <Input value={draft.video_url || ""} onChange={(e) => setDraft({...draft, video_url: e.target.value})} placeholder="Lien vidéo" />
                         <Input value={draft.audio_url || ""} onChange={(e) => setDraft({...draft, audio_url: e.target.value})} placeholder="Lien audio" />
